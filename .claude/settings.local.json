@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(New-Item -ItemType Directory -Force -Path \"C:\\\\Users\\\\jimmy\\\\OneDrive\\\\Desktop\\\\fyp\\\\lib\\\\viewmodels\")",
+      "PowerShell(New-Item -ItemType Directory -Force -Path \"C:\\\\Users\\\\jimmy\\\\OneDrive\\\\Desktop\\\\fyp\\\\lib\\\\views\\\\auth\")",
+      "PowerShell(Set-Location \"C:\\\\Users\\\\jimmy\\\\OneDrive\\\\Desktop\\\\fyp\"; flutter analyze lib/ --no-pub 2>&1; Write-Host \"EXIT:$LASTEXITCODE\")"
+    ]
+  }
+}
