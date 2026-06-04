@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'viewmodels/auth_viewmodel.dart';
 import 'views/auth/login_view.dart';
+import 'views/dashboard/dashboard_view.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -37,7 +38,7 @@ class SmartMatchApp extends StatelessWidget {
         home: const LoginView(),
         routes: {
           '/login': (_) => const LoginView(),
-          // '/dashboard': (_) => const DashboardView(), // uncomment when built
+          '/dashboard': (_) => const DashboardView(),
         },
       ),
     );

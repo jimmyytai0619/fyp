@@ -24,8 +24,8 @@ class AuthViewModel extends ChangeNotifier {
       return null;
     } on AuthException catch (e) {
       return _mapAuthError(e.message);
-    } catch (_) {
-      return 'An unexpected error occurred. Please try again.';
+    } catch (e) {
+      return 'An unexpected error occurred: $e';
     } finally {
       _setLoading(false);
     }
@@ -49,11 +49,6 @@ class AuthViewModel extends ChangeNotifier {
           'student_id': studentId.trim(),
           'phone': phone.trim(),
         },
-      );
-      // Bypass email verification during development — remove before production
-      await Supabase.instance.client.auth.signInWithPassword(
-        email: email.trim(),
-        password: password,
       );
       return null;
     } on AuthException catch (e) {

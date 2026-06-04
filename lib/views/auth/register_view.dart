@@ -52,8 +52,10 @@ class _RegisterViewState extends State<RegisterView> {
     if (error != null) {
       _showSnackbar(error, isError: true);
     } else {
-      _showSnackbar('Account created! Please log in.', isError: false);
-      Navigator.of(context).pop();
+      Navigator.of(context).pushNamedAndRemoveUntil(
+        '/dashboard',
+        (route) => false,
+      );
     }
   }
 
