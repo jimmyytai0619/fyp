@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../../viewmodels/auth_viewmodel.dart';
+import '../../viewmodels/profile_viewmodel.dart';
+import '../profile/profile_view.dart';
 import '../report_item/report_item_view.dart';
+import '../search/search_view.dart';
 
 class DashboardView extends StatefulWidget {
   const DashboardView({super.key});
@@ -23,10 +25,14 @@ class _DashboardViewState extends State<DashboardView> {
       backgroundColor: _bgColor,
       body: IndexedStack(
         index: _currentIndex,
-        children: const [
-          _HomeTab(),
-          _MessagesTab(),
-          _ProfileTab(),
+        children: [
+          const _HomeTab(),
+          const _MessagesTab(),
+          // ProfileViewModel is scoped to the Profile tab only.
+          ChangeNotifierProvider(
+            create: (_) => ProfileViewModel(),
+            child: const ProfileView(),
+          ),
         ],
       ),
       bottomNavigationBar: NavigationBar(
@@ -69,7 +75,7 @@ class _HomeTab extends StatelessWidget {
       icon: Icons.search_rounded,
       label: 'Find My\nLost Item',
       color: Color(0xFF1565C0),
-      route: null, // TODO: wire up
+      route: 'search',
     ),
     _ActionCard(
       icon: Icons.add_a_photo_rounded,
@@ -204,6 +210,10 @@ class _ActionCardWidget extends StatelessWidget {
       Navigator.of(context).push(
         MaterialPageRoute(builder: (_) => const ReportItemView()),
       );
+    } else if (card.route == 'search') {
+      Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => const SearchView()),
+      );
     }
   }
 
@@ -253,7 +263,7 @@ class _ActionCardWidget extends StatelessWidget {
   }
 }
 
-// ── Placeholder tabs ──────────────────────────────────────────────────────────
+// ── Placeholder tabs ─────────────────────────────────────────────────────────
 
 class _MessagesTab extends StatelessWidget {
   const _MessagesTab();
@@ -263,35 +273,4 @@ class _MessagesTab extends StatelessWidget {
         child: Text('Messages — coming soon',
             style: TextStyle(color: Color(0xFF9E9E9E))),
       );
-}
-
-class _ProfileTab extends StatelessWidget {
-  const _ProfileTab();
-
-  @override
-  Widget build(BuildContext context) {
-    return SafeArea(
-      child: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text('Profile — coming soon',
-                style: TextStyle(color: Color(0xFF9E9E9E))),
-            const SizedBox(height: 24),
-            TextButton.icon(
-              icon: const Icon(Icons.logout_rounded),
-              label: const Text('Sign Out'),
-              style: TextButton.styleFrom(foregroundColor: Colors.red),
-              onPressed: () async {
-                await context.read<AuthViewModel>().signOut();
-                if (context.mounted) {
-                  Navigator.of(context).pushReplacementNamed('/login');
-                }
-              },
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 }
