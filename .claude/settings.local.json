@@ -4,7 +4,10 @@
       "PowerShell(New-Item -ItemType Directory -Force -Path \"C:\\\\Users\\\\jimmy\\\\OneDrive\\\\Desktop\\\\fyp\\\\lib\\\\viewmodels\")",
       "PowerShell(New-Item -ItemType Directory -Force -Path \"C:\\\\Users\\\\jimmy\\\\OneDrive\\\\Desktop\\\\fyp\\\\lib\\\\views\\\\auth\")",
       "PowerShell(Set-Location \"C:\\\\Users\\\\jimmy\\\\OneDrive\\\\Desktop\\\\fyp\"; flutter analyze lib/ --no-pub 2>&1; Write-Host \"EXIT:$LASTEXITCODE\")",
-      "PowerShell(Get-ChildItem -Path \"C:\\\\Users\\\\jimmy\\\\OneDrive\\\\Desktop\\\\fyp\\\\lib\" -Recurse | Select-Object FullName | ForEach-Object { $_.FullName.Replace\\('C:\\\\Users\\\\jimmy\\\\OneDrive\\\\Desktop\\\\fyp\\\\', ''\\) })"
+      "PowerShell(Get-ChildItem -Path \"C:\\\\Users\\\\jimmy\\\\OneDrive\\\\Desktop\\\\fyp\\\\lib\" -Recurse | Select-Object FullName | ForEach-Object { $_.FullName.Replace\\('C:\\\\Users\\\\jimmy\\\\OneDrive\\\\Desktop\\\\fyp\\\\', ''\\) })",
+      "Bash(flutter run *)",
+      "Bash(flutter devices *)",
+      "Bash(flutter analyze *)"
     ]
   }
 }

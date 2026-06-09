@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 import '../../models/match_result.dart';
 import '../../viewmodels/search_viewmodel.dart';
@@ -686,6 +687,8 @@ class _ErrorPanel extends StatelessWidget {
 
   const _ErrorPanel({super.key, required this.message});
 
+  bool get _isPermissionError => message == 'OPEN_SETTINGS';
+
   @override
   Widget build(BuildContext context) {
     return Center(
@@ -697,35 +700,67 @@ class _ErrorPanel extends StatelessWidget {
             Container(
               width: 80,
               height: 80,
-              decoration: const BoxDecoration(
-                  color: Color(0xFFFFEBEE), shape: BoxShape.circle),
-              child: const Icon(Icons.wifi_off_rounded,
-                  color: Color(0xFFC62828), size: 38),
+              decoration: BoxDecoration(
+                  color: _isPermissionError
+                      ? const Color(0xFFFFF3E0)
+                      : const Color(0xFFFFEBEE),
+                  shape: BoxShape.circle),
+              child: Icon(
+                _isPermissionError
+                    ? Icons.lock_outline_rounded
+                    : Icons.wifi_off_rounded,
+                color: _isPermissionError
+                    ? const Color(0xFFE65100)
+                    : const Color(0xFFC62828),
+                size: 38,
+              ),
             ),
             const SizedBox(height: 20),
-            const Text('Search Failed',
-                style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                    color: Color(0xFF37474F))),
-            const SizedBox(height: 8),
-            Text(message,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                    fontSize: 13.5, color: Colors.grey.shade600)),
-            const SizedBox(height: 24),
-            ElevatedButton.icon(
-              icon: const Icon(Icons.refresh_rounded),
-              label: const Text('Try Again'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF1565C0),
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12)),
-              ),
-              onPressed: () =>
-                  context.read<SearchViewModel>().executeVisualSearch(),
+            Text(
+              _isPermissionError ? 'Permission Required' : 'Search Failed',
+              style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF37474F)),
             ),
+            const SizedBox(height: 8),
+            Text(
+              _isPermissionError
+                  ? 'Camera/Gallery permission was denied. Please enable it in your device Settings to continue.'
+                  : message,
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 13.5, color: Colors.grey.shade600),
+            ),
+            const SizedBox(height: 24),
+            if (_isPermissionError) ...[
+              ElevatedButton.icon(
+                icon: const Icon(Icons.settings_rounded),
+                label: const Text('Open Settings'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFE65100),
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
+                ),
+                onPressed: () {
+                  openAppSettings();
+                  context.read<SearchViewModel>().clearSearch();
+                },
+              ),
+            ] else ...[
+              ElevatedButton.icon(
+                icon: const Icon(Icons.refresh_rounded),
+                label: const Text('Try Again'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF1565C0),
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
+                ),
+                onPressed: () =>
+                    context.read<SearchViewModel>().executeVisualSearch(),
+              ),
+            ],
           ],
         ),
       ),

@@ -11,7 +11,7 @@ Future<void> main() async {
 
   await Supabase.initialize(
     url: 'https://wsmwxtcdjvburvptuqbb.supabase.co',         // ← replace with your project URL
-    publishableKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndzbXd4dGNkanZidXJ2cHR1cWJiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA1NzY5ODAsImV4cCI6MjA5NjE1Mjk4MH0.ayAuRfGzLl6AwPeSQsJL9KpWEv6sKH9e_3tL85Yyrvs', // ← replace with your anon key
+    publishableKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndzbXd4dGNkanZidXJ2cHR1cWJiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA1NzY5ODAsImV4cCI6MjA5NjE1Mjk4MH0.ayAuRfGzLl6AwPeSQsJL9KpWEv6sKH9e_3tL85Yyrvs',
   );
 
   runApp(const SmartMatchApp());

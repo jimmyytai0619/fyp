@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 import '../models/match_result.dart';
 import '../services/api_service.dart';
@@ -29,16 +30,68 @@ class SearchViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Returns true = granted, false = denied, null = permanently denied (open settings)
+  Future<bool?> _requestPermission(ImageSource source) async {
+    List<Permission> perms;
+
+    if (source == ImageSource.camera) {
+      perms = [Permission.camera];
+    } else {
+      if (Platform.isAndroid) {
+        // Android 13+ needs photos, older needs storage
+        perms = [Permission.photos, Permission.storage];
+      } else {
+        perms = [Permission.photos];
+      }
+    }
+
+    for (final perm in perms) {
+      var status = await perm.status;
+
+      if (status.isPermanentlyDenied) return null; // must open settings
+
+      if (!status.isGranted) {
+        status = await perm.request();
+      }
+
+      if (status.isGranted) return true;
+      if (status.isPermanentlyDenied) return null;
+    }
+
+    return false;
+  }
+
   Future<void> pickImage(ImageSource source) async {
-    final picked = await _picker.pickImage(
-      source: source,
-      imageQuality: 85,
-      maxWidth: 1080,
-    );
-    if (picked == null) return;
-    _referenceImage = File(picked.path);
-    _searchResults = [];
-    _setState(SearchState.idle);
+    final result = await _requestPermission(source);
+
+    if (result == null) {
+      // Permanently denied — open app settings so user can enable manually
+      _errorMessage = 'OPEN_SETTINGS';
+      _setState(SearchState.error);
+      return;
+    }
+
+    if (result == false) {
+      _errorMessage =
+          'Permission denied. Please allow access when prompted.';
+      _setState(SearchState.error);
+      return;
+    }
+
+    try {
+      final picked = await _picker.pickImage(
+        source: source,
+        imageQuality: 85,
+        maxWidth: 1080,
+      );
+      if (picked == null) return;
+      _referenceImage = File(picked.path);
+      _searchResults = [];
+      _setState(SearchState.idle);
+    } catch (e) {
+      _errorMessage = 'Could not open camera/gallery. Please try again.';
+      _setState(SearchState.error);
+    }
   }
 
   void clearSearch() {

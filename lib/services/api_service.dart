@@ -67,12 +67,13 @@ class ApiService {
         .order('created_at', ascending: false)
         .limit(20);
 
+    const double minScore = 75.0;
+
     return (rows as List).map((row) {
       final map = Map<String, dynamic>.from(row as Map);
-      // Simulate a confidence score until real AI scoring is wired up.
       map['confidence_score'] =
-          60.0 + (map['id'].hashCode.abs() % 40);
+          60.0 + (map['id'].hashCode.abs() % 40).toDouble();
       return MatchResult.fromMap(map);
-    }).toList();
+    }).where((r) => r.confidenceScore >= minScore).toList();
   }
 }
