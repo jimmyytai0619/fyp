@@ -1,6 +1,8 @@
 import 'dart:io';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../models/app_notification.dart';
+import '../models/item_report.dart';
 import '../models/match_result.dart';
 
 class ApiService {
@@ -33,6 +35,73 @@ class ApiService {
       'image_url': imageUrl,
       'created_at': DateTime.now().toIso8601String(),
     });
+  }
+
+  Future<List<ItemReport>> getMyLostReports() async {
+    final userId = _client.auth.currentUser?.id;
+    if (userId == null) throw Exception('User not authenticated.');
+
+    final rows = await _client
+        .from('lost_items')
+        .select()
+        .eq('user_id', userId)
+        .order('created_at', ascending: false);
+
+    return (rows as List)
+        .map((r) => ItemReport.fromMap(Map<String, dynamic>.from(r as Map)))
+        .toList();
+  }
+
+  Future<List<ItemReport>> getMyFoundReports() async {
+    final userId = _client.auth.currentUser?.id;
+    if (userId == null) throw Exception('User not authenticated.');
+
+    final rows = await _client
+        .from('found_items')
+        .select()
+        .eq('user_id', userId)
+        .order('created_at', ascending: false);
+
+    return (rows as List)
+        .map((r) => ItemReport.fromMap(Map<String, dynamic>.from(r as Map)))
+        .toList();
+  }
+
+  Future<List<AppNotification>> getNotifications() async {
+    final userId = _client.auth.currentUser?.id;
+    if (userId == null) throw Exception('User not authenticated.');
+
+    final rows = await _client
+        .from('notifications')
+        .select()
+        .eq('user_id', userId)
+        .order('created_at', ascending: false);
+
+    return (rows as List)
+        .map((r) =>
+            AppNotification.fromMap(Map<String, dynamic>.from(r as Map)))
+        .toList();
+  }
+
+  Future<void> markNotificationRead(String notificationId) async {
+    await _client
+        .from('notifications')
+        .update({'is_read': true})
+        .eq('id', notificationId);
+  }
+
+  Future<List<ItemReport>> browseFoundItems({String? category}) async {
+    final baseQuery = _client.from('found_items').select();
+
+    final rows = (category != null && category != 'All')
+        ? await baseQuery
+            .eq('category', category)
+            .order('created_at', ascending: false)
+        : await baseQuery.order('created_at', ascending: false);
+
+    return (rows as List)
+        .map((r) => ItemReport.fromMap(Map<String, dynamic>.from(r as Map)))
+        .toList();
   }
 
   /// Uploads the reference image to a temporary path, then invokes the

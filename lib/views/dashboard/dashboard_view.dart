@@ -1,7 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../viewmodels/browse_viewmodel.dart';
+import '../../viewmodels/manage_records_viewmodel.dart';
+import '../../viewmodels/notifications_viewmodel.dart';
 import '../../viewmodels/profile_viewmodel.dart';
+import '../browse/browse_view.dart';
+import '../manage_records/manage_records_view.dart';
+import '../notifications/notifications_view.dart';
 import '../profile/profile_view.dart';
 import '../report_item/report_item_view.dart';
 import '../search/search_view.dart';
@@ -27,7 +33,11 @@ class _DashboardViewState extends State<DashboardView> {
         index: _currentIndex,
         children: [
           const _HomeTab(),
-          const _MessagesTab(),
+          // NotificationsViewModel is scoped to the Messages tab only.
+          ChangeNotifierProvider(
+            create: (_) => NotificationsViewModel(),
+            child: const NotificationsView(),
+          ),
           // ProfileViewModel is scoped to the Profile tab only.
           ChangeNotifierProvider(
             create: (_) => ProfileViewModel(),
@@ -87,13 +97,13 @@ class _HomeTab extends StatelessWidget {
       icon: Icons.folder_open_rounded,
       label: 'Manage\nMy Records',
       color: Color(0xFF6949FF),
-      route: null,
+      route: 'manage',
     ),
     _ActionCard(
       icon: Icons.grid_view_rounded,
       label: 'Browse',
       color: Color(0xFFE65100),
-      route: null,
+      route: 'browse',
     ),
   ];
 
@@ -214,6 +224,24 @@ class _ActionCardWidget extends StatelessWidget {
       Navigator.of(context).push(
         MaterialPageRoute(builder: (_) => const SearchView()),
       );
+    } else if (card.route == 'manage') {
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => ChangeNotifierProvider(
+            create: (_) => ManageRecordsViewModel(),
+            child: const ManageRecordsView(),
+          ),
+        ),
+      );
+    } else if (card.route == 'browse') {
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => ChangeNotifierProvider(
+            create: (_) => BrowseViewModel(),
+            child: const BrowseView(),
+          ),
+        ),
+      );
     }
   }
 
@@ -263,14 +291,3 @@ class _ActionCardWidget extends StatelessWidget {
   }
 }
 
-// ── Placeholder tabs ─────────────────────────────────────────────────────────
-
-class _MessagesTab extends StatelessWidget {
-  const _MessagesTab();
-
-  @override
-  Widget build(BuildContext context) => const Center(
-        child: Text('Messages — coming soon',
-            style: TextStyle(color: Color(0xFF9E9E9E))),
-      );
-}
