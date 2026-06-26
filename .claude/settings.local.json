@@ -7,7 +7,8 @@
       "PowerShell(Get-ChildItem -Path \"C:\\\\Users\\\\jimmy\\\\OneDrive\\\\Desktop\\\\fyp\\\\lib\" -Recurse | Select-Object FullName | ForEach-Object { $_.FullName.Replace\\('C:\\\\Users\\\\jimmy\\\\OneDrive\\\\Desktop\\\\fyp\\\\', ''\\) })",
       "Bash(flutter run *)",
       "Bash(flutter devices *)",
-      "Bash(flutter analyze *)"
+      "Bash(flutter analyze *)",
+      "Bash(adb devices *)"
     ]
   }
 }

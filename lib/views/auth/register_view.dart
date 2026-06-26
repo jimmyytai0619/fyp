@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../viewmodels/auth_viewmodel.dart';
+import 'otp_verification_view.dart';
 
 class RegisterView extends StatefulWidget {
   const RegisterView({super.key});
@@ -52,9 +53,10 @@ class _RegisterViewState extends State<RegisterView> {
     if (error != null) {
       _showSnackbar(error, isError: true);
     } else {
-      Navigator.of(context).pushNamedAndRemoveUntil(
-        '/dashboard',
-        (route) => false,
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => OtpVerificationView(email: email),
+        ),
       );
     }
   }

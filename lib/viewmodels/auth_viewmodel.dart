@@ -52,8 +52,65 @@ class AuthViewModel extends ChangeNotifier {
       );
       return null;
     } on AuthException catch (e) {
-      return _mapAuthError(e.message);
+      // TEMP DEBUG: show the raw Supabase error
+      return 'DEBUG AuthException: ${e.message}';
+    } catch (e) {
+      // TEMP DEBUG: show the raw error
+      return 'DEBUG other: $e';
+    } finally {
+      _setLoading(false);
+    }
+  }
+
+  // Verifies the 6-digit signup OTP.
+  // Returns true on success; throws a user-friendly error message on failure.
+  Future<bool> verifyOtp(String email, String otp) async {
+    _setLoading(true);
+    try {
+      await Supabase.instance.client.auth.verifyOTP(
+        email: email.trim(),
+        token: otp.trim(),
+        type: OtpType.signup,
+      );
+      return true;
+    } on AuthException catch (e) {
+      throw _mapAuthError(e.message);
     } catch (_) {
+      throw 'An unexpected error occurred. Please try again.';
+    } finally {
+      _setLoading(false);
+    }
+  }
+
+  // Returns null on success, or a user-friendly error string on failure.
+  Future<String?> forgotPassword({required String email}) async {
+    _setLoading(true);
+    try {
+      await Supabase.instance.client.auth.resetPasswordForEmail(
+        email.trim(),
+        redirectTo: 'smartmatch://reset-password',
+      );
+      return null;
+    } on AuthException catch (e) {
+      return _mapAuthError(e.message);
+    } catch (e) {
+      return 'An unexpected error occurred. Please try again.';
+    } finally {
+      _setLoading(false);
+    }
+  }
+
+  // Returns null on success, or a user-friendly error string on failure.
+  Future<String?> updatePassword({required String newPassword}) async {
+    _setLoading(true);
+    try {
+      await Supabase.instance.client.auth.updateUser(
+        UserAttributes(password: newPassword),
+      );
+      return null;
+    } on AuthException catch (e) {
+      return _mapAuthError(e.message);
+    } catch (e) {
       return 'An unexpected error occurred. Please try again.';
     } finally {
       _setLoading(false);

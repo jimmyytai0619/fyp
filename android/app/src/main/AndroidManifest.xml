@@ -29,6 +29,13 @@
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
+            <!-- Deep link handler for Supabase auth callbacks (password reset, email confirm) -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="smartmatch"/>
+            </intent-filter>
         </activity>
         <!-- Required by image_picker for camera capture on Android 7+ -->
         <provider
