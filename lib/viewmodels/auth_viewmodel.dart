@@ -52,11 +52,9 @@ class AuthViewModel extends ChangeNotifier {
       );
       return null;
     } on AuthException catch (e) {
-      // TEMP DEBUG: show the raw Supabase error
-      return 'DEBUG AuthException: ${e.message}';
-    } catch (e) {
-      // TEMP DEBUG: show the raw error
-      return 'DEBUG other: $e';
+      return _mapAuthError(e.message);
+    } catch (_) {
+      return 'An unexpected error occurred. Please try again.';
     } finally {
       _setLoading(false);
     }

@@ -37,6 +37,48 @@ class ApiService {
     });
   }
 
+  /// Reports an item the user has LOST. The image is optional because a user
+  /// may not always have a photo of their missing belonging.
+  Future<void> reportLostItem({
+    File? image,
+    required String category,
+    required String locationLost,
+    required String description,
+    required List<String> tags,
+  }) async {
+    final userId = _client.auth.currentUser?.id;
+    if (userId == null) throw Exception('User not authenticated.');
+
+    String? imageUrl;
+    if (image != null) {
+      final ext = image.path.split('.').last;
+      final fileName =
+          'lost/${userId}_${DateTime.now().millisecondsSinceEpoch}.$ext';
+      await _client.storage.from('found-items').upload(fileName, image);
+      imageUrl = _client.storage.from('found-items').getPublicUrl(fileName);
+    }
+
+    await _client.from('lost_items').insert({
+      'user_id': userId,
+      'category': category,
+      'location_found': locationLost,
+      'description': description,
+      'tags': tags,
+      'image_url': imageUrl,
+      'created_at': DateTime.now().toIso8601String(),
+    });
+  }
+
+  /// Deletes one of the current user's own reports. RLS ensures a user can
+  /// only delete rows they own.
+  Future<void> deleteReport({
+    required String id,
+    required bool isLost,
+  }) async {
+    final table = isLost ? 'lost_items' : 'found_items';
+    await _client.from(table).delete().eq('id', id);
+  }
+
   Future<List<ItemReport>> getMyLostReports() async {
     final userId = _client.auth.currentUser?.id;
     if (userId == null) throw Exception('User not authenticated.');

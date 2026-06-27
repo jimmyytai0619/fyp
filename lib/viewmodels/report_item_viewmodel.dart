@@ -36,13 +36,20 @@ class ReportItemViewModel extends ChangeNotifier {
   }
 
   Future<void> submitReport({
+    required bool isLost,
     required String category,
     required String location,
     required String description,
     required String tags,
   }) async {
-    if (_selectedImage == null) throw Exception('Please select an image.');
-    if (location.trim().isEmpty) throw Exception('Location is required.');
+    // Found items must have a photo (it's the basis for AI matching); lost
+    // items may be reported without one.
+    if (!isLost && _selectedImage == null) {
+      throw Exception('Please select an image.');
+    }
+    if (!isLost && location.trim().isEmpty) {
+      throw Exception('Location is required.');
+    }
 
     _setLoading(true);
     try {
@@ -52,13 +59,23 @@ class ReportItemViewModel extends ChangeNotifier {
           .where((t) => t.isNotEmpty)
           .toList();
 
-      await ApiService().reportFoundItem(
-        image: _selectedImage!,
-        category: category,
-        locationFound: location.trim(),
-        description: description.trim(),
-        tags: tagList,
-      );
+      if (isLost) {
+        await ApiService().reportLostItem(
+          image: _selectedImage,
+          category: category,
+          locationLost: location.trim(),
+          description: description.trim(),
+          tags: tagList,
+        );
+      } else {
+        await ApiService().reportFoundItem(
+          image: _selectedImage!,
+          category: category,
+          locationFound: location.trim(),
+          description: description.trim(),
+          tags: tagList,
+        );
+      }
     } finally {
       _setLoading(false);
     }

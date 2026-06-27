@@ -78,30 +78,39 @@ class _DashboardViewState extends State<DashboardView> {
 class _HomeTab extends StatelessWidget {
   const _HomeTab();
 
-  static const _primaryBlue = Color(0xFF1565C0);
-
   static const _actions = [
     _ActionCard(
       icon: Icons.search_rounded,
-      label: 'Find My\nLost Item',
+      label: 'Find My Lost Item',
+      description: 'Search now with a photo',
       color: Color(0xFF1565C0),
       route: 'search',
     ),
     _ActionCard(
       icon: Icons.add_a_photo_rounded,
-      label: 'Report\nFound Item',
+      label: 'Report Found Item',
+      description: 'Add an item you picked up',
       color: Color(0xFF00897B),
       route: 'report',
     ),
     _ActionCard(
+      icon: Icons.report_gmailerrorred_rounded,
+      label: 'Report Lost Item',
+      description: 'Get alerted when it\'s found',
+      color: Color(0xFFD81B60),
+      route: 'report_lost',
+    ),
+    _ActionCard(
       icon: Icons.folder_open_rounded,
-      label: 'Manage\nMy Records',
+      label: 'Manage My Records',
+      description: 'View & delete your reports',
       color: Color(0xFF6949FF),
       route: 'manage',
     ),
     _ActionCard(
       icon: Icons.grid_view_rounded,
       label: 'Browse',
+      description: 'See all found items',
       color: Color(0xFFE65100),
       route: 'browse',
     ),
@@ -124,7 +133,7 @@ class _HomeTab extends StatelessWidget {
                 crossAxisCount: 2,
                 crossAxisSpacing: 14,
                 mainAxisSpacing: 14,
-                childAspectRatio: 1.05,
+                childAspectRatio: 0.92,
               ),
             ),
           ),
@@ -199,12 +208,14 @@ class _HomeTab extends StatelessWidget {
 class _ActionCard {
   final IconData icon;
   final String label;
+  final String description;
   final Color color;
   final String? route;
 
   const _ActionCard({
     required this.icon,
     required this.label,
+    required this.description,
     required this.color,
     required this.route,
   });
@@ -219,6 +230,10 @@ class _ActionCardWidget extends StatelessWidget {
     if (card.route == 'report') {
       Navigator.of(context).push(
         MaterialPageRoute(builder: (_) => const ReportItemView()),
+      );
+    } else if (card.route == 'report_lost') {
+      Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => const ReportItemView(isLost: true)),
       );
     } else if (card.route == 'search') {
       Navigator.of(context).push(
@@ -261,30 +276,47 @@ class _ActionCardWidget extends StatelessWidget {
             ),
           ],
         ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              width: 58,
-              height: 58,
-              decoration: BoxDecoration(
-                color: card.color.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(16),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                width: 52,
+                height: 52,
+                decoration: BoxDecoration(
+                  color: card.color.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Icon(card.icon, color: card.color, size: 28),
               ),
-              child: Icon(card.icon, color: card.color, size: 30),
-            ),
-            const SizedBox(height: 14),
-            Text(
-              card.label,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 13.5,
-                fontWeight: FontWeight.w700,
-                color: const Color(0xFF1A237E),
-                height: 1.35,
+              const SizedBox(height: 12),
+              Text(
+                card.label,
+                textAlign: TextAlign.center,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF1A237E),
+                ),
               ),
-            ),
-          ],
+              const SizedBox(height: 4),
+              Text(
+                card.description,
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w500,
+                  color: Colors.grey.shade600,
+                  height: 1.3,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../../models/item_report.dart';
 import '../../viewmodels/manage_records_viewmodel.dart';
+import '../report_item/report_item_view.dart';
 
 class ManageRecordsView extends StatefulWidget {
   const ManageRecordsView({super.key});
@@ -30,6 +31,23 @@ class _ManageRecordsViewState extends State<ManageRecordsView> {
       length: 2,
       child: Scaffold(
         backgroundColor: _bgColor,
+        floatingActionButton: FloatingActionButton.extended(
+          backgroundColor: _primaryBlue,
+          foregroundColor: Colors.white,
+          icon: const Icon(Icons.add_rounded),
+          label: const Text('Report Lost Item',
+              style: TextStyle(fontWeight: FontWeight.w700)),
+          onPressed: () async {
+            final created = await Navigator.of(context).push<bool>(
+              MaterialPageRoute(
+                builder: (_) => const ReportItemView(isLost: true),
+              ),
+            );
+            if (created == true && context.mounted) {
+              context.read<ManageRecordsViewModel>().fetchMyRecords();
+            }
+          },
+        ),
         appBar: AppBar(
           backgroundColor: _primaryBlue,
           foregroundColor: Colors.white,
@@ -87,12 +105,14 @@ class _ManageRecordsViewState extends State<ManageRecordsView> {
               children: [
                 _ItemList(
                   items: vm.myLostItems,
+                  isLost: true,
                   emptyIcon: Icons.search_off_rounded,
                   emptyMessage: "You haven't reported any lost items yet.",
                   accentColor: _primaryBlue,
                 ),
                 _ItemList(
                   items: vm.myFoundItems,
+                  isLost: false,
                   emptyIcon: Icons.inventory_2_outlined,
                   emptyMessage: "You haven't reported any found items yet.",
                   accentColor: const Color(0xFF00897B),
@@ -110,28 +130,120 @@ class _ManageRecordsViewState extends State<ManageRecordsView> {
 
 class _ItemList extends StatelessWidget {
   final List<ItemReport> items;
+  final bool isLost;
   final IconData emptyIcon;
   final String emptyMessage;
   final Color accentColor;
 
   const _ItemList({
     required this.items,
+    required this.isLost,
     required this.emptyIcon,
     required this.emptyMessage,
     required this.accentColor,
   });
 
+  Future<void> _refresh(BuildContext context) =>
+      context.read<ManageRecordsViewModel>().fetchMyRecords();
+
+  Future<bool> _confirmDelete(BuildContext context, ItemReport item) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Delete record?'),
+        content: Text(
+          'This will permanently remove your "${item.category}" '
+          '${isLost ? 'lost' : 'found'} report.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel',
+                style: TextStyle(color: Color(0xFF757575))),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Delete',
+                style: TextStyle(
+                    color: Color(0xFFD32F2F), fontWeight: FontWeight.w700)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return false;
+
+    try {
+      await context
+          .read<ManageRecordsViewModel>()
+          .deleteRecord(id: item.id, isLost: isLost);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Record deleted.'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+      return true;
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e.toString().replaceFirst('Exception: ', '')),
+            backgroundColor: const Color(0xFFB00020),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+      return false;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     if (items.isEmpty) {
-      return _EmptyState(icon: emptyIcon, message: emptyMessage,
-          color: accentColor);
+      // Wrap in a scrollable so pull-to-refresh still works when empty.
+      return RefreshIndicator(
+        onRefresh: () => _refresh(context),
+        child: ListView(
+          children: [
+            SizedBox(
+              height: MediaQuery.of(context).size.height * 0.6,
+              child: _EmptyState(
+                  icon: emptyIcon, message: emptyMessage, color: accentColor),
+            ),
+          ],
+        ),
+      );
     }
-    return ListView.builder(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-      itemCount: items.length,
-      itemBuilder: (_, i) =>
-          _RecordCard(item: items[i], accentColor: accentColor),
+    return RefreshIndicator(
+      onRefresh: () => _refresh(context),
+      child: ListView.builder(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 90),
+        itemCount: items.length,
+        itemBuilder: (_, i) {
+          final item = items[i];
+          return Dismissible(
+            key: ValueKey(item.id),
+            direction: DismissDirection.endToStart,
+            confirmDismiss: (_) => _confirmDelete(context, item),
+            background: Container(
+              alignment: Alignment.centerRight,
+              margin: const EdgeInsets.only(bottom: 12),
+              padding: const EdgeInsets.only(right: 24),
+              decoration: BoxDecoration(
+                color: const Color(0xFFD32F2F),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: const Icon(Icons.delete_outline_rounded,
+                  color: Colors.white, size: 26),
+            ),
+            child: _RecordCard(item: item, accentColor: accentColor),
+          );
+        },
+      ),
     );
   }
 }

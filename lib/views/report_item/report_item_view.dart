@@ -5,7 +5,10 @@ import 'package:image_picker/image_picker.dart';
 import '../../viewmodels/report_item_viewmodel.dart';
 
 class ReportItemView extends StatefulWidget {
-  const ReportItemView({super.key});
+  /// When true, the screen reports a LOST item; otherwise a FOUND item.
+  final bool isLost;
+
+  const ReportItemView({super.key, this.isLost = false});
 
   @override
   State<ReportItemView> createState() => _ReportItemViewState();
@@ -100,6 +103,7 @@ class _ReportItemViewState extends State<ReportItemView> {
 
     try {
       await vm.submitReport(
+        isLost: widget.isLost,
         category: _selectedCategory,
         location: _locationCtrl.text,
         description: _descCtrl.text,
@@ -108,10 +112,12 @@ class _ReportItemViewState extends State<ReportItemView> {
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(_snackbar(
-        'Item added to database!',
+        widget.isLost
+            ? 'Lost item report submitted!'
+            : 'Item added to database!',
         isError: false,
       ));
-      Navigator.of(context).pop();
+      Navigator.of(context).pop(true);
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(_snackbar(
@@ -155,9 +161,9 @@ class _ReportItemViewState extends State<ReportItemView> {
               appBar: AppBar(
                 backgroundColor: _primaryBlue,
                 foregroundColor: Colors.white,
-                title: const Text(
-                  'Report Found Item',
-                  style: TextStyle(fontWeight: FontWeight.w700),
+                title: Text(
+                  widget.isLost ? 'Report Lost Item' : 'Report Found Item',
+                  style: const TextStyle(fontWeight: FontWeight.w700),
                 ),
                 elevation: 0,
               ),
@@ -239,7 +245,9 @@ class _ReportItemViewState extends State<ReportItemView> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'Camera or Gallery',
+                    widget.isLost
+                        ? 'Camera or Gallery (optional)'
+                        : 'Camera or Gallery',
                     style: TextStyle(
                       fontSize: 12,
                       color: Colors.grey.shade500,
@@ -306,16 +314,25 @@ class _ReportItemViewState extends State<ReportItemView> {
             },
           ),
           const SizedBox(height: 20),
-          _label('Specific Location Found *'),
+          _label(widget.isLost
+              ? 'Where did you last see it?'
+              : 'Specific Location Found *'),
           const SizedBox(height: 8),
           TextFormField(
             controller: _locationCtrl,
             textInputAction: TextInputAction.next,
             decoration: _inputDeco(
-                hint: 'e.g. Library 2nd floor, near the printer',
+                hint: widget.isLost
+                    ? 'e.g. Canteen, around 2pm'
+                    : 'e.g. Library 2nd floor, near the printer',
                 icon: Icons.location_on_outlined),
-            validator: (v) =>
-                (v == null || v.trim().isEmpty) ? 'Location is required.' : null,
+            validator: (v) {
+              // Location is mandatory only when reporting a found item.
+              if (widget.isLost) return null;
+              return (v == null || v.trim().isEmpty)
+                  ? 'Location is required.'
+                  : null;
+            },
           ),
           const SizedBox(height: 20),
           _label('Notes / Description'),
@@ -350,13 +367,15 @@ class _ReportItemViewState extends State<ReportItemView> {
       height: 54,
       child: ElevatedButton.icon(
         onPressed: vm.isLoading ? null : () => _submit(vm),
-        icon: const Icon(Icons.cloud_upload_rounded),
-        label: const Text(
-          'Upload & Process Image',
-          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+        icon: Icon(widget.isLost
+            ? Icons.report_gmailerrorred_rounded
+            : Icons.cloud_upload_rounded),
+        label: Text(
+          widget.isLost ? 'Submit Lost Report' : 'Upload & Process Image',
+          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
         ),
         style: ElevatedButton.styleFrom(
-          backgroundColor: _teal,
+          backgroundColor: widget.isLost ? _primaryBlue : _teal,
           foregroundColor: Colors.white,
           disabledBackgroundColor: _teal.withValues(alpha: 0.5),
           elevation: 3,

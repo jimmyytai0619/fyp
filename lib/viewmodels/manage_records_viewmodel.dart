@@ -47,4 +47,24 @@ class ManageRecordsViewModel extends ChangeNotifier {
       _setLoading(false);
     }
   }
+
+  /// Deletes one of the user's own records and removes it from the local list.
+  /// Throws on failure so the View can surface a message.
+  Future<void> deleteRecord({
+    required String id,
+    required bool isLost,
+  }) async {
+    try {
+      await ApiService().deleteReport(id: id, isLost: isLost);
+      if (isLost) {
+        _myLostItems = _myLostItems.where((e) => e.id != id).toList();
+      } else {
+        _myFoundItems = _myFoundItems.where((e) => e.id != id).toList();
+      }
+      notifyListeners();
+    } catch (e) {
+      debugPrint('[ManageRecordsViewModel] deleteRecord error: $e');
+      throw Exception('Failed to delete the record. Please try again.');
+    }
+  }
 }
