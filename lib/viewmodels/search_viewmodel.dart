@@ -17,6 +17,22 @@ class SearchViewModel extends ChangeNotifier {
   File? _referenceImage;
   File? get referenceImage => _referenceImage;
 
+  // Optional category hard-filter for the visual search.
+  static const List<String> categories = [
+    'Any Category',
+    'Electronics',
+    'IDs & Cards',
+    'Bags & Wallets',
+    'Other',
+  ];
+  String _selectedCategory = 'Any Category';
+  String get selectedCategory => _selectedCategory;
+
+  void setCategory(String category) {
+    _selectedCategory = category;
+    notifyListeners();
+  }
+
   List<MatchResult> _searchResults = [];
   List<MatchResult> get searchResults => _searchResults;
 
@@ -105,7 +121,11 @@ class SearchViewModel extends ChangeNotifier {
     if (_referenceImage == null) return;
     _setState(SearchState.loading);
     try {
-      final results = await ApiService().searchByImage(_referenceImage!);
+      final results = await ApiService().searchByImage(
+        _referenceImage!,
+        category:
+            _selectedCategory == 'Any Category' ? null : _selectedCategory,
+      );
       _searchResults = results
         ..sort((a, b) => b.confidenceScore.compareTo(a.confidenceScore));
       _setState(SearchState.results);

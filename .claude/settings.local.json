@@ -8,7 +8,11 @@
       "Bash(flutter run *)",
       "Bash(flutter devices *)",
       "Bash(flutter analyze *)",
-      "Bash(adb devices *)"
+      "Bash(adb devices *)",
+      "Bash(py --version)",
+      "Bash(pip --version)",
+      "Bash(flutter pub *)",
+      "Bash(python -m py_compile main.py)"
     ]
   }
 }

@@ -214,6 +214,46 @@ class _PreSearchPanel extends StatelessWidget {
             ),
           ),
 
+          const SizedBox(height: 20),
+
+          // Category hard-filter — narrows results to the right item type
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: _primaryBlue.withValues(alpha: 0.2)),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.filter_list_rounded,
+                    color: _primaryBlue, size: 20),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<String>(
+                      value: vm.selectedCategory,
+                      isExpanded: true,
+                      borderRadius: BorderRadius.circular(12),
+                      items: SearchViewModel.categories
+                          .map((c) => DropdownMenuItem(
+                                value: c,
+                                child: Text(c,
+                                    style: const TextStyle(fontSize: 14)),
+                              ))
+                          .toList(),
+                      onChanged: (v) {
+                        if (v != null) {
+                          context.read<SearchViewModel>().setCategory(v);
+                        }
+                      },
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
           const SizedBox(height: 24),
 
           // Search button

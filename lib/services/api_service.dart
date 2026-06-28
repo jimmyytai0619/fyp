@@ -1,9 +1,16 @@
+import 'dart:convert';
 import 'dart:io';
+import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/app_notification.dart';
 import '../models/item_report.dart';
 import '../models/match_result.dart';
+
+/// Base URL of the Python FastAPI AI matching backend (Module 3).
+///   • Android emulator → 10.0.2.2 maps to the host machine's localhost
+///   • Real device      → replace with your PC's LAN IP (e.g. 192.168.1.x:8000)
+const String aiBackendBaseUrl = 'http://10.0.2.2:8000';
 
 class ApiService {
   final _client = Supabase.instance.client;
@@ -146,45 +153,43 @@ class ApiService {
         .toList();
   }
 
-  /// Uploads the reference image to a temporary path, then invokes the
-  /// Supabase Edge Function `match-image` which performs pgvector similarity
-  /// search and returns scored results.
-  ///
-  /// Replace the body of this method with a real vector-search call once your
-  /// Edge Function is deployed. The stub below queries the found_items table
-  /// directly and returns all rows so the UI is fully functional during dev.
-  Future<List<MatchResult>> searchByImage(File imageFile) async {
+  /// Sends the reference image to the FastAPI MobileNetV2 backend, which
+  /// extracts a 1280-dim feature vector, runs cosine similarity against every
+  /// found item, and returns matches scoring at or above the 50% threshold,
+  /// ranked highest-first (FR 3.1–3.5).
+  Future<List<MatchResult>> searchByImage(
+    File imageFile, {
+    String? category,
+  }) async {
     final userId = _client.auth.currentUser?.id;
     if (userId == null) throw Exception('User not authenticated.');
 
-    // Upload reference image to a temporary search path.
-    final ext = imageFile.path.split('.').last;
-    final refPath =
-        'search_refs/${userId}_${DateTime.now().millisecondsSinceEpoch}.$ext';
-    await _client.storage.from('found-items').upload(refPath, imageFile);
+    final uri = Uri.parse('$aiBackendBaseUrl/search');
+    final request = http.MultipartRequest('POST', uri)
+      ..files.add(await http.MultipartFile.fromPath('file', imageFile.path));
+    if (category != null && category.isNotEmpty) {
+      request.fields['category'] = category;
+    }
 
-    // ── Replace below with your Edge Function call ──────────────────────────
-    // final response = await _client.functions.invoke(
-    //   'match-image',
-    //   body: {'ref_path': refPath},
-    // );
-    // final rows = List<Map<String, dynamic>>.from(response.data['matches']);
-    // ────────────────────────────────────────────────────────────────────────
+    http.StreamedResponse streamed;
+    try {
+      streamed = await request.send().timeout(const Duration(seconds: 60));
+    } catch (e) {
+      throw Exception(
+          'Could not reach the AI server. Make sure the backend is running.');
+    }
 
-    // Dev stub: fetch all rows and attach a simulated confidence score.
-    final rows = await _client
-        .from('found_items')
-        .select()
-        .order('created_at', ascending: false)
-        .limit(20);
+    final response = await http.Response.fromStream(streamed);
 
-    const double minScore = 75.0;
+    if (response.statusCode != 200) {
+      throw Exception(
+          'AI search failed (${response.statusCode}). Please try again.');
+    }
 
-    return (rows as List).map((row) {
-      final map = Map<String, dynamic>.from(row as Map);
-      map['confidence_score'] =
-          60.0 + (map['id'].hashCode.abs() % 40).toDouble();
-      return MatchResult.fromMap(map);
-    }).where((r) => r.confidenceScore >= minScore).toList();
+    final decoded = jsonDecode(response.body) as Map<String, dynamic>;
+    final matches = (decoded['matches'] as List? ?? [])
+        .map((m) => MatchResult.fromMap(Map<String, dynamic>.from(m as Map)))
+        .toList();
+    return matches;
   }
 }
