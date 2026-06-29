@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../../models/match_result.dart';
+import '../../services/api_service.dart';
+import '../claims/claim_quiz_view.dart';
 
 class ItemDetailView extends StatelessWidget {
   final MatchResult item;
@@ -8,6 +10,44 @@ class ItemDetailView extends StatelessWidget {
   const ItemDetailView({super.key, required this.item});
 
   static const _primaryBlue = Color(0xFF1565C0);
+
+  Future<void> _startClaim(BuildContext context) async {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(child: CircularProgressIndicator()),
+    );
+
+    String? question;
+    try {
+      question = await ApiService().getSecurityQuestion(item.id);
+    } catch (_) {
+      question = null;
+    }
+
+    if (!context.mounted) return;
+    Navigator.of(context).pop(); // close loading dialog
+
+    if (question == null || question.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text(
+              'This item has no ownership question set, so it can\'t be claimed in-app.'),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        ),
+      );
+      return;
+    }
+
+    if (!context.mounted) return;
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => ClaimQuizView(itemId: item.id, question: question!),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -108,8 +148,8 @@ class ItemDetailView extends StatelessWidget {
                     width: double.infinity,
                     height: 52,
                     child: ElevatedButton.icon(
-                      icon: const Icon(Icons.chat_bubble_outline_rounded),
-                      label: const Text('Contact Finder',
+                      icon: const Icon(Icons.shield_outlined),
+                      label: const Text('Claim This Item',
                           style: TextStyle(
                               fontSize: 15, fontWeight: FontWeight.w700)),
                       style: ElevatedButton.styleFrom(
@@ -118,19 +158,7 @@ class ItemDetailView extends StatelessWidget {
                         shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(14)),
                       ),
-                      onPressed: () {
-                        // TODO: wire up messaging module
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: const Text('Messaging coming soon!'),
-                            behavior: SnackBarBehavior.floating,
-                            shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(10)),
-                            margin: const EdgeInsets.symmetric(
-                                horizontal: 16, vertical: 12),
-                          ),
-                        );
-                      },
+                      onPressed: () => _startClaim(context),
                     ),
                   ),
                 ],

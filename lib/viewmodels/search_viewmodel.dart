@@ -114,7 +114,42 @@ class SearchViewModel extends ChangeNotifier {
     _referenceImage = null;
     _searchResults = [];
     _errorMessage = '';
+    _lostReportSaved = false;
     _setState(SearchState.idle);
+  }
+
+  // ── Save unmatched query as a Lost Report (FR 4.2) ──────────────────────────
+  bool _savingLostReport = false;
+  bool get savingLostReport => _savingLostReport;
+
+  bool _lostReportSaved = false;
+  bool get lostReportSaved => _lostReportSaved;
+
+  /// Saves the current reference photo as an active Lost Report so the
+  /// background agent can notify the user when a matching item is found later.
+  /// Returns null on success or an error message on failure.
+  Future<String?> saveReferenceAsLostReport() async {
+    if (_referenceImage == null) return 'No reference photo to save.';
+    _savingLostReport = true;
+    notifyListeners();
+    try {
+      await ApiService().reportLostItem(
+        image: _referenceImage,
+        category: _selectedCategory == 'Any Category'
+            ? 'Other'
+            : _selectedCategory,
+        locationLost: '',
+        description: 'Saved from AI visual search',
+        tags: const [],
+      );
+      _lostReportSaved = true;
+      return null;
+    } catch (e) {
+      return 'Could not save lost report. Please try again.';
+    } finally {
+      _savingLostReport = false;
+      notifyListeners();
+    }
   }
 
   Future<void> executeVisualSearch() async {

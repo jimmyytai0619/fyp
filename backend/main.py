@@ -34,8 +34,10 @@ load_dotenv()
 
 SUPABASE_URL = os.getenv("SUPABASE_URL", "")
 SUPABASE_SERVICE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
-MATCH_THRESHOLD = float(os.getenv("MATCH_THRESHOLD", "50"))  # FR 3.4 — 50%
+MATCH_THRESHOLD = float(os.getenv("MATCH_THRESHOLD", "50"))   # FR 3.4 — search
+NOTIFY_THRESHOLD = float(os.getenv("NOTIFY_THRESHOLD", "75"))  # FR 4.4 — alerts
 FOUND_TABLE = "found_items"
+LOST_TABLE = "lost_items"
 
 if not SUPABASE_URL or not SUPABASE_SERVICE_KEY:
     print("⚠️  SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY not set — check your .env")
@@ -99,18 +101,37 @@ def _parse_embedding(raw) -> Optional[np.ndarray]:
     return None
 
 
-def _persist_embedding(item_id: str, vector: np.ndarray) -> None:
+def _persist_embedding(table: str, item_id: str, vector: np.ndarray) -> None:
     """Best-effort cache of the vector back into Supabase so future searches
     are fast. Silently ignored if the `embedding` column does not exist."""
     if supabase is None:
         return
     try:
         vec_str = "[" + ",".join(f"{x:.6f}" for x in vector.tolist()) + "]"
-        supabase.table(FOUND_TABLE).update({"embedding": vec_str}).eq(
+        supabase.table(table).update({"embedding": vec_str}).eq(
             "id", item_id
         ).execute()
     except Exception as e:
         print(f"(note) could not persist embedding for {item_id}: {e}")
+
+
+def embedding_for_row(table: str, row: dict) -> Optional[np.ndarray]:
+    """Return a row's vector — from the cached `embedding` column if present,
+    otherwise download its image, compute it, and cache it (lazy indexing)."""
+    vec = _parse_embedding(row.get("embedding"))
+    if vec is not None:
+        return vec
+    image_url = row.get("image_url")
+    if not image_url:
+        return None
+    try:
+        img_bytes = requests.get(image_url, timeout=15).content
+        vec = extract_vector(img_bytes)
+        _persist_embedding(table, row["id"], vec)
+        return vec
+    except Exception as e:
+        print(f"(skip) could not process {row.get('id')} in {table}: {e}")
+        return None
 
 
 # ── Routes ───────────────────────────────────────────────────────────────────
@@ -164,19 +185,9 @@ async def search(
     # 3. Score each item (lazy-indexing any item without a cached vector)
     matches = []
     for row in rows:
-        vec = _parse_embedding(row.get("embedding"))
-
+        vec = embedding_for_row(FOUND_TABLE, row)
         if vec is None:
-            image_url = row.get("image_url")
-            if not image_url:
-                continue
-            try:
-                img_bytes = requests.get(image_url, timeout=15).content
-                vec = extract_vector(img_bytes)
-                _persist_embedding(row["id"], vec)
-            except Exception as e:
-                print(f"(skip) could not process {row.get('id')}: {e}")
-                continue
+            continue
 
         score = cosine_similarity(query_vec, vec) * 100.0  # → percentage
         if score >= MATCH_THRESHOLD:
@@ -198,3 +209,69 @@ async def search(
     if top_k > 0:
         matches = matches[:top_k]
     return {"matches": matches, "count": len(matches)}
+
+
+@app.post("/ingest-found")
+async def ingest_found(item_id: str = Form(...)):
+    """
+    FR 4.3 / 4.4 — Background matching agent.
+    Called when a new FOUND item is reported. Compares it against every
+    active (unresolved) LOST report and, for any match above NOTIFY_THRESHOLD,
+    writes a notification for the lost item's owner.
+    """
+    if supabase is None:
+        raise HTTPException(status_code=500, detail="Supabase is not configured.")
+
+    # 1. Load the newly reported found item
+    try:
+        found_rows = (
+            supabase.table(FOUND_TABLE).select("*").eq("id", item_id).limit(1)
+            .execute().data
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Database error: {e}")
+    if not found_rows:
+        raise HTTPException(status_code=404, detail="Found item not found.")
+
+    found = found_rows[0]
+    found_vec = embedding_for_row(FOUND_TABLE, found)
+    if found_vec is None:
+        return {"notified": 0, "detail": "found item has no usable image"}
+
+    # 2. Compare against all active lost reports
+    try:
+        lost_rows = supabase.table(LOST_TABLE).select("*").execute().data or []
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Database error: {e}")
+
+    notified = 0
+    for lr in lost_rows:
+        if lr.get("is_resolved"):
+            continue
+        lvec = embedding_for_row(LOST_TABLE, lr)
+        if lvec is None:
+            continue
+
+        score = cosine_similarity(found_vec, lvec) * 100.0
+        if score < NOTIFY_THRESHOLD:
+            continue
+
+        # 3. Notify the owner of the lost report (FR 4.4)
+        try:
+            supabase.table("notifications").insert(
+                {
+                    "user_id": lr.get("user_id"),
+                    "title": f"Possible match found ({round(score)}%)",
+                    "message": (
+                        f"A {found.get('category', 'item')} matching your lost "
+                        f"report was just reported found at "
+                        f"{found.get('location_found', 'campus')}."
+                    ),
+                    "is_read": False,
+                }
+            ).execute()
+            notified += 1
+        except Exception as e:
+            print(f"(note) could not insert notification: {e}")
+
+    return {"notified": notified}

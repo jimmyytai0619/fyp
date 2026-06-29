@@ -494,6 +494,67 @@ class _LoadingPanelState extends State<_LoadingPanel>
   }
 }
 
+// ── Save-as-Lost-Report button (FR 4.2) ──────────────────────────────────────
+
+class _SaveLostReportButton extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    final vm = context.watch<SearchViewModel>();
+
+    if (vm.lostReportSaved) {
+      return Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(Icons.check_circle_rounded,
+              color: Color(0xFF2E7D32), size: 20),
+          const SizedBox(width: 8),
+          Text('Saved — we\'ll alert you when found',
+              style: TextStyle(
+                  color: Colors.grey.shade700,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 13.5)),
+        ],
+      );
+    }
+
+    return ElevatedButton.icon(
+      onPressed: vm.savingLostReport
+          ? null
+          : () async {
+              final error =
+                  await context.read<SearchViewModel>().saveReferenceAsLostReport();
+              if (!context.mounted) return;
+              if (error != null) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(error),
+                    backgroundColor: const Color(0xFFB00020),
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
+              }
+            },
+      icon: vm.savingLostReport
+          ? const SizedBox(
+              width: 18,
+              height: 18,
+              child: CircularProgressIndicator(
+                  strokeWidth: 2, color: Colors.white),
+            )
+          : const Icon(Icons.notifications_active_outlined),
+      label: const Text('Save as Lost Report',
+          style: TextStyle(fontWeight: FontWeight.w700)),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: const Color(0xFF1565C0),
+        foregroundColor: Colors.white,
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+    );
+  }
+}
+
 // ── Results Panel ─────────────────────────────────────────────────────────────
 
 class _ResultsPanel extends StatelessWidget {
@@ -520,11 +581,14 @@ class _ResultsPanel extends StatelessWidget {
                       color: Color(0xFF37474F))),
               const SizedBox(height: 8),
               Text(
-                'Try a clearer photo or a different angle.',
+                "It hasn't been reported found yet. Save it as a lost "
+                'report and we\'ll alert you when a match turns up.',
                 style: TextStyle(
                     fontSize: 14, color: Colors.grey.shade500),
                 textAlign: TextAlign.center,
               ),
+              const SizedBox(height: 24),
+              _SaveLostReportButton(),
             ],
           ),
         ),

@@ -38,6 +38,14 @@ dependencies:
   permission_handler: ^11.3.1
   http: ^1.2.2
 
+  # ── On-device AI classification (Modules 2 & 3) ──
+  # ML Kit is Android/iOS only. If pub can't resolve the exact pin,
+  # run: flutter pub add google_mlkit_image_labeling google_mlkit_commons
+  google_mlkit_image_labeling: ^0.14.0
+  google_mlkit_commons: ^0.11.0
+  palette_generator: ^0.3.3+5
+  google_mlkit_text_recognition: ^0.15.0   # OCR for brand/logo text (FR 2.6)
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
