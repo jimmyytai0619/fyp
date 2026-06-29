@@ -41,6 +41,8 @@ class ReportItemViewModel extends ChangeNotifier {
     required String location,
     required String description,
     required String tags,
+    String? securityQuestion,
+    String? securityAnswer,
   }) async {
     // Found items must have a photo (it's the basis for AI matching); lost
     // items may be reported without one.
@@ -68,13 +70,20 @@ class ReportItemViewModel extends ChangeNotifier {
           tags: tagList,
         );
       } else {
-        await ApiService().reportFoundItem(
+        final newId = await ApiService().reportFoundItem(
           image: _selectedImage!,
           category: category,
           locationFound: location.trim(),
           description: description.trim(),
           tags: tagList,
+          securityQuestion: securityQuestion?.trim(),
+          securityAnswer: securityAnswer?.trim(),
         );
+        // Fire the background matching agent (FR 4.3). Best-effort: if the AI
+        // server is offline, the item is still saved — matching just won't run.
+        try {
+          await ApiService().ingestFoundItem(newId);
+        } catch (_) {/* ignore — reporting already succeeded */}
       }
     } finally {
       _setLoading(false);

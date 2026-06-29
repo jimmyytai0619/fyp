@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../viewmodels/browse_viewmodel.dart';
+import '../../viewmodels/claims_viewmodel.dart';
 import '../../viewmodels/manage_records_viewmodel.dart';
 import '../../viewmodels/notifications_viewmodel.dart';
 import '../../viewmodels/profile_viewmodel.dart';
 import '../browse/browse_view.dart';
+import '../claims/claims_view.dart';
 import '../manage_records/manage_records_view.dart';
 import '../notifications/notifications_view.dart';
 import '../profile/profile_view.dart';
@@ -21,9 +24,70 @@ class DashboardView extends StatefulWidget {
 
 class _DashboardViewState extends State<DashboardView> {
   int _currentIndex = 0;
+  RealtimeChannel? _notifChannel;
 
   static const _primaryBlue = Color(0xFF1565C0);
   static const _bgColor = Color(0xFFF0F4FF);
+
+  @override
+  void initState() {
+    super.initState();
+    _subscribeToNotifications();
+  }
+
+  /// FR 4.4 — Listens over Supabase Realtime (WebSockets) for new notification
+  /// rows targeting this user and shows an instant in-app alert.
+  void _subscribeToNotifications() {
+    final uid = Supabase.instance.client.auth.currentUser?.id;
+    if (uid == null) return;
+
+    _notifChannel = Supabase.instance.client
+        .channel('notifications_$uid')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.insert,
+          schema: 'public',
+          table: 'notifications',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'user_id',
+            value: uid,
+          ),
+          callback: (payload) {
+            final title =
+                (payload.newRecord['title'] as String?) ?? 'New match found';
+            if (!mounted) return;
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Row(
+                  children: [
+                    const Icon(Icons.notifications_active_rounded,
+                        color: Colors.white, size: 20),
+                    const SizedBox(width: 10),
+                    Expanded(child: Text(title)),
+                  ],
+                ),
+                backgroundColor: _primaryBlue,
+                behavior: SnackBarBehavior.floating,
+                duration: const Duration(seconds: 5),
+                action: SnackBarAction(
+                  label: 'VIEW',
+                  textColor: Colors.white,
+                  onPressed: () => setState(() => _currentIndex = 1),
+                ),
+              ),
+            );
+          },
+        )
+        .subscribe();
+  }
+
+  @override
+  void dispose() {
+    if (_notifChannel != null) {
+      Supabase.instance.client.removeChannel(_notifChannel!);
+    }
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -106,6 +170,13 @@ class _HomeTab extends StatelessWidget {
       description: 'View & delete your reports',
       color: Color(0xFF6949FF),
       route: 'manage',
+    ),
+    _ActionCard(
+      icon: Icons.verified_user_rounded,
+      label: 'My Claims',
+      description: 'Claims, approvals & chat',
+      color: Color(0xFF00838F),
+      route: 'claims',
     ),
     _ActionCard(
       icon: Icons.grid_view_rounded,
@@ -254,6 +325,15 @@ class _ActionCardWidget extends StatelessWidget {
           builder: (_) => ChangeNotifierProvider(
             create: (_) => BrowseViewModel(),
             child: const BrowseView(),
+          ),
+        ),
+      );
+    } else if (card.route == 'claims') {
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => ChangeNotifierProvider(
+            create: (_) => ClaimsViewModel(),
+            child: const ClaimsView(),
           ),
         ),
       );

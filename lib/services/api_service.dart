@@ -4,6 +4,8 @@ import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/app_notification.dart';
+import '../models/claim.dart';
+import '../models/claim_message.dart';
 import '../models/item_report.dart';
 import '../models/match_result.dart';
 
@@ -15,12 +17,17 @@ const String aiBackendBaseUrl = 'http://10.0.2.2:8000';
 class ApiService {
   final _client = Supabase.instance.client;
 
-  Future<void> reportFoundItem({
+  /// Reports a found item and returns the new row's id.
+  /// Optionally sets a Zero-Trust ownership question (FR 5.2): the question is
+  /// public, but the answer is stored in the locked-down item_secrets table.
+  Future<String> reportFoundItem({
     required File image,
     required String category,
     required String locationFound,
     required String description,
     required List<String> tags,
+    String? securityQuestion,
+    String? securityAnswer,
   }) async {
     final userId = _client.auth.currentUser?.id;
     if (userId == null) throw Exception('User not authenticated.');
@@ -33,15 +40,142 @@ class ApiService {
     final imageUrl =
         _client.storage.from('found-items').getPublicUrl(fileName);
 
-    await _client.from('found_items').insert({
+    final inserted = await _client.from('found_items').insert({
       'user_id': userId,
       'category': category,
       'location_found': locationFound,
       'description': description,
       'tags': tags,
       'image_url': imageUrl,
+      'security_question': securityQuestion,
       'created_at': DateTime.now().toIso8601String(),
+    }).select('id').single();
+
+    final id = inserted['id'] as String;
+
+    if (securityAnswer != null && securityAnswer.trim().isNotEmpty) {
+      await _client.from('item_secrets').insert({
+        'item_id': id,
+        'answer': securityAnswer.trim(),
+      });
+    }
+
+    return id;
+  }
+
+  // ── Secure Claim & Handover (Module 5) ──────────────────────────────────────
+
+  /// Reads the public ownership question for a found item (null if none set).
+  Future<String?> getSecurityQuestion(String itemId) async {
+    final row = await _client
+        .from('found_items')
+        .select('security_question')
+        .eq('id', itemId)
+        .maybeSingle();
+    return row?['security_question'] as String?;
+  }
+
+  /// FR 5.1 / 5.2 — Submits a claim by answering the ownership quiz. The answer
+  /// is verified server-side. Returns a status code:
+  /// PASSED, WRONG, LOCKED, ALREADY, REJECTED, OWN_ITEM, NO_QUESTION.
+  Future<String> submitClaim({
+    required String itemId,
+    required String answer,
+  }) async {
+    final res = await _client.rpc('submit_claim', params: {
+      'p_item_id': itemId,
+      'p_answer': answer,
     });
+    return res as String;
+  }
+
+  /// Claims the current user has made (as the claimant).
+  Future<List<Claim>> getMyClaims() async {
+    final uid = _client.auth.currentUser?.id;
+    if (uid == null) throw Exception('User not authenticated.');
+    final rows = await _client
+        .from('claims')
+        .select('*, found_items(*)')
+        .eq('claimant_id', uid)
+        .order('created_at', ascending: false);
+    return (rows as List)
+        .map((r) => Claim.fromMap(Map<String, dynamic>.from(r as Map)))
+        .toList();
+  }
+
+  /// Claim requests on items the current user found (as the finder).
+  /// Excludes in-progress quiz attempts that haven't passed yet.
+  Future<List<Claim>> getClaimRequests() async {
+    final uid = _client.auth.currentUser?.id;
+    if (uid == null) throw Exception('User not authenticated.');
+    final rows = await _client
+        .from('claims')
+        .select('*, found_items(*)')
+        .eq('finder_id', uid)
+        .neq('status', 'Quiz')
+        .order('created_at', ascending: false);
+    return (rows as List)
+        .map((r) => Claim.fromMap(Map<String, dynamic>.from(r as Map)))
+        .toList();
+  }
+
+  /// FR 5.3 / 5.5 — Finder approves/rejects, or either party marks Returned.
+  Future<void> updateClaimStatus(String claimId, String status) async {
+    await _client.from('claims').update({'status': status}).eq('id', claimId);
+  }
+
+  /// FR 5.6 — Records the chosen campus safe zone for the handover.
+  Future<void> setClaimSafeZone(String claimId, String zone) async {
+    await _client.from('claims').update({'safe_zone': zone}).eq('id', claimId);
+  }
+
+  /// FR 5.4 — Masked chat history for a verified claim.
+  Future<List<ClaimMessage>> getMessages(String claimId) async {
+    final rows = await _client
+        .from('claim_messages')
+        .select()
+        .eq('claim_id', claimId)
+        .order('created_at', ascending: true);
+    return (rows as List)
+        .map((r) => ClaimMessage.fromMap(Map<String, dynamic>.from(r as Map)))
+        .toList();
+  }
+
+  Future<void> sendMessage(String claimId, String body) async {
+    final uid = _client.auth.currentUser?.id;
+    if (uid == null) throw Exception('User not authenticated.');
+    await _client.from('claim_messages').insert({
+      'claim_id': claimId,
+      'sender_id': uid,
+      'body': body.trim(),
+    });
+  }
+
+  /// FR 4.3 — Asks the backend background agent to match a newly reported
+  /// found item against all active lost reports and notify owners.
+  /// Best-effort: failures here must not break the reporting flow.
+  Future<void> ingestFoundItem(String itemId) async {
+    final uri = Uri.parse('$aiBackendBaseUrl/ingest-found');
+    final request = http.MultipartRequest('POST', uri)
+      ..fields['item_id'] = itemId;
+    await request.send().timeout(const Duration(seconds: 60));
+  }
+
+  /// FR 4.1 — Smart text search: keyword filter over found items when no
+  /// reference photo is available (matches description or category).
+  Future<List<ItemReport>> searchFoundItemsByText(String query) async {
+    final q = query.trim();
+    if (q.isEmpty) return [];
+
+    final rows = await _client
+        .from('found_items')
+        .select()
+        .or('description.ilike.%$q%,category.ilike.%$q%')
+        .order('created_at', ascending: false);
+
+    return (rows as List)
+        .map((r) => ItemReport.fromMap(Map<String, dynamic>.from(r as Map)))
+        .toList();
   }
 
   /// Reports an item the user has LOST. The image is optional because a user

@@ -40,6 +40,7 @@ class _BrowseViewState extends State<BrowseView> {
       ),
       body: Column(
         children: [
+          _SearchBar(primaryColor: _primaryBlue),
           _CategoryFilterBar(primaryColor: _primaryBlue),
           Expanded(
             child: Consumer<BrowseViewModel>(
@@ -96,6 +97,78 @@ class _BrowseViewState extends State<BrowseView> {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ── Smart Text Search Bar (FR 4.1) ───────────────────────────────────────────
+
+class _SearchBar extends StatefulWidget {
+  final Color primaryColor;
+
+  const _SearchBar({required this.primaryColor});
+
+  @override
+  State<_SearchBar> createState() => _SearchBarState();
+}
+
+class _SearchBarState extends State<_SearchBar> {
+  final _controller = TextEditingController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    context.read<BrowseViewModel>().setSearchQuery(_controller.text);
+    FocusScope.of(context).unfocus();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: Colors.white,
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+      child: TextField(
+        controller: _controller,
+        textInputAction: TextInputAction.search,
+        onSubmitted: (_) => _submit(),
+        decoration: InputDecoration(
+          hintText: 'Search by keyword (e.g. wallet, samsung)',
+          hintStyle: const TextStyle(color: Color(0xFFBDBDBD), fontSize: 14),
+          prefixIcon:
+              Icon(Icons.search_rounded, color: widget.primaryColor, size: 22),
+          suffixIcon: _controller.text.isEmpty
+              ? null
+              : IconButton(
+                  icon: const Icon(Icons.close_rounded, size: 20),
+                  onPressed: () {
+                    _controller.clear();
+                    context.read<BrowseViewModel>().setSearchQuery('');
+                    FocusScope.of(context).unfocus();
+                  },
+                ),
+          filled: true,
+          fillColor: const Color(0xFFF8FAFF),
+          contentPadding:
+              const EdgeInsets.symmetric(vertical: 0, horizontal: 16),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: Color(0xFFDDE3F0)),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: Color(0xFFDDE3F0)),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide(color: widget.primaryColor, width: 1.6),
+          ),
+        ),
+        onChanged: (_) => setState(() {}), // toggle the clear button
       ),
     );
   }

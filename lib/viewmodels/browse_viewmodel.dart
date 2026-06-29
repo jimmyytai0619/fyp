@@ -19,6 +19,9 @@ class BrowseViewModel extends ChangeNotifier {
   String _selectedCategory = 'All';
   String get selectedCategory => _selectedCategory;
 
+  String _searchQuery = '';
+  String get searchQuery => _searchQuery;
+
   final List<String> categories = const [
     'All',
     'Electronics',
@@ -40,9 +43,15 @@ class BrowseViewModel extends ChangeNotifier {
     _errorMessage = null;
     _setLoading(true);
     try {
-      _foundItems = await ApiService().browseFoundItems(
-        category: _selectedCategory == 'All' ? null : _selectedCategory,
-      );
+      if (_searchQuery.isNotEmpty) {
+        // FR 4.1 — Smart text search overrides the category filter.
+        _foundItems =
+            await ApiService().searchFoundItemsByText(_searchQuery);
+      } else {
+        _foundItems = await ApiService().browseFoundItems(
+          category: _selectedCategory == 'All' ? null : _selectedCategory,
+        );
+      }
     } on PostgrestException catch (e) {
       _errorMessage = e.message;
       _foundItems = [];
@@ -58,6 +67,14 @@ class BrowseViewModel extends ChangeNotifier {
   Future<void> setCategory(String category) async {
     if (_selectedCategory == category) return;
     _selectedCategory = category;
+    _searchQuery = ''; // picking a category clears an active text search
+    notifyListeners();
+    await fetchItems();
+  }
+
+  /// FR 4.1 — run a keyword search; an empty query reverts to category browsing.
+  Future<void> setSearchQuery(String query) async {
+    _searchQuery = query.trim();
     notifyListeners();
     await fetchItems();
   }

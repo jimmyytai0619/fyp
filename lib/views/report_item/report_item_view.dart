@@ -19,6 +19,8 @@ class _ReportItemViewState extends State<ReportItemView> {
   final _locationCtrl = TextEditingController();
   final _descCtrl = TextEditingController();
   final _tagsCtrl = TextEditingController();
+  final _questionCtrl = TextEditingController();
+  final _answerCtrl = TextEditingController();
 
   static const _categories = [
     'Electronics',
@@ -36,6 +38,8 @@ class _ReportItemViewState extends State<ReportItemView> {
     _locationCtrl.dispose();
     _descCtrl.dispose();
     _tagsCtrl.dispose();
+    _questionCtrl.dispose();
+    _answerCtrl.dispose();
     super.dispose();
   }
 
@@ -108,6 +112,8 @@ class _ReportItemViewState extends State<ReportItemView> {
         location: _locationCtrl.text,
         description: _descCtrl.text,
         tags: _tagsCtrl.text,
+        securityQuestion: _questionCtrl.text,
+        securityAnswer: _answerCtrl.text,
       );
 
       if (!mounted) return;
@@ -355,6 +361,65 @@ class _ReportItemViewState extends State<ReportItemView> {
                 hint: 'e.g. blue, samsung, charger',
                 icon: Icons.label_outline_rounded),
           ),
+
+          // Ownership-verification quiz — found items only (FR 5.2)
+          if (!widget.isLost) ...[
+            const SizedBox(height: 24),
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFF8E1),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFFFFE082)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.verified_user_outlined,
+                      color: Color(0xFFE65100), size: 20),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'Set a security question only the real owner can answer. '
+                      'Claimants must answer it before they can contact you.',
+                      style: TextStyle(
+                          fontSize: 12, color: Colors.brown.shade700, height: 1.4),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            _label('Ownership Question'),
+            const SizedBox(height: 8),
+            TextFormField(
+              controller: _questionCtrl,
+              textInputAction: TextInputAction.next,
+              decoration: _inputDeco(
+                  hint: 'e.g. What is the phone case colour?',
+                  icon: Icons.help_outline_rounded),
+              validator: (v) {
+                if (v == null || v.trim().isEmpty) {
+                  return 'A security question is required for found items.';
+                }
+                return null;
+              },
+            ),
+            const SizedBox(height: 16),
+            _label('Correct Answer'),
+            const SizedBox(height: 8),
+            TextFormField(
+              controller: _answerCtrl,
+              textInputAction: TextInputAction.done,
+              decoration: _inputDeco(
+                  hint: 'e.g. Red', icon: Icons.key_outlined),
+              validator: (v) {
+                if (v == null || v.trim().isEmpty) {
+                  return 'Please set the correct answer.';
+                }
+                return null;
+              },
+            ),
+          ],
         ],
       ),
     );
