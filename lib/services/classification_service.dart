@@ -116,6 +116,9 @@ class ClassificationService {
     'Electronics',
     'IDs & Cards',
     'Bags & Wallets',
+    'Keys & Lanyards',
+    'Books & Stationery',
+    'Clothing & Accessories',
     'Other',
   ];
 
@@ -131,10 +134,26 @@ class ClassificationService {
       ).copyWithBrand(brand);
     }
 
-    final top = labels.first;
+    // NEW HEURISTIC: Instead of just taking the top label (which might be generic
+    // like "Plastic" or "Object"), we look for the first label that maps to a
+    // specific campus category.
+    var top = labels.first;
+    var category = _mapToCategory(top.label);
+
+    if (category == 'Other') {
+      for (final l in labels) {
+        final labelText = l.label.toLowerCase();
+        final mapped = _mapToCategory(labelText);
+        if (mapped != 'Other') {
+          top = l;
+          category = mapped;
+          break; // Found a specific mapping!
+        }
+      }
+    }
+
     final tier = _tierFor(top.confidence);
     final material = _inferMaterial(labels);
-    final category = _mapToCategory(top.label);
 
     // Build distinct category suggestions (used by the medium tier).
     final seen = <String>{};
@@ -207,26 +226,53 @@ class ClassificationService {
     }
   }
 
-  /// Folds a fine-grained ML Kit label into one of SmartMatch's 4 categories.
+  /// Folds a fine-grained ML Kit label into one of SmartMatch's standardized categories.
   String _mapToCategory(String mlLabel) {
     final label = mlLabel.toLowerCase();
+
     const electronics = [
       'phone', 'mobile', 'laptop', 'computer', 'tablet', 'headphone',
       'earphone', 'charger', 'camera', 'watch', 'mouse', 'keyboard',
-      'cable', 'television', 'speaker',
+      'cable', 'television', 'speaker', 'power bank', 'kindle', 'gadget',
+      'microphone', 'monitor', 'usb', 'pendrive', 'electronic',
     ];
+
     const idsAndCards = [
       'card', 'id', 'identity', 'passport', 'license', 'document', 'paper',
-      'ticket', 'badge',
+      'ticket', 'badge', 'credit card', 'debit card', 'bank card', 'membership',
+      'smartcard', 'student id',
     ];
+
     const bagsAndWallets = [
       'bag', 'backpack', 'wallet', 'purse', 'handbag', 'luggage', 'pouch',
-      'satchel', 'briefcase',
+      'satchel', 'briefcase', 'suitcase', 'tote', 'knapsack', 'clutch',
     ];
+
+    const keysAndLanyards = [
+      'key', 'lanyard', 'keychain', 'car key', 'house key', 'fob',
+    ];
+
+    const booksAndStationery = [
+      'book', 'notebook', 'textbook', 'calculator', 'pen', 'pencil', 'stationery',
+      'folder', 'binder', 'ruler', 'eraser', 'pencil case', 'journal', 'clipboard',
+    ];
+
+    const clothingAndAccessories = [
+      'umbrella', 'glasses', 'sunglasses', 'jewelry', 'ring',
+      'necklace', 'bracelet', 'hat', 'cap', 'scarf', 'glove', 'water bottle',
+      'bottle', 'tumbler', 'flask', 'clothing', 'shirt', 'jacket', 'coat',
+      'shoe', 'sneaker', 'sandal', 'socks', 'belt',
+    ];
+
     bool hit(List<String> keys) => keys.any(label.contains);
+
     if (hit(electronics)) return 'Electronics';
     if (hit(idsAndCards)) return 'IDs & Cards';
     if (hit(bagsAndWallets)) return 'Bags & Wallets';
+    if (hit(keysAndLanyards)) return 'Keys & Lanyards';
+    if (hit(booksAndStationery)) return 'Books & Stationery';
+    if (hit(clothingAndAccessories)) return 'Clothing & Accessories';
+
     return 'Other';
   }
 
@@ -291,10 +337,16 @@ class ClassificationService {
     var best = swatches.first.color;
     for (final sw in swatches) {
       final c = sw.color;
-      final (_, s, _) = _toHsv(c.r, c.g, c.b);
-      // population (area) weighted, but boosted by saturation so a coloured
-      // swatch isn't beaten by a marginally larger neutral one.
-      final score = sw.population * (0.35 + 0.65 * s);
+      final hsv = _toHsv(c.r, c.g, c.b);
+      final s = hsv.$2;
+      final v = hsv.$3;
+
+      // population (area) weighted
+      // boost by saturation (so a coloured swatch beats a neutral one)
+      // penalize very dark colors (v < 0.2) to avoid shadows/background being picked as "Black"
+      double score = sw.population * (0.35 + 0.65 * s);
+      if (v < 0.2) score *= 0.1; 
+
       if (score > bestScore) {
         bestScore = score;
         best = c;

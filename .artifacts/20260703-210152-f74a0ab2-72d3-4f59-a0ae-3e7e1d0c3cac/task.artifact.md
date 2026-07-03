@@ -1,0 +1,6 @@
+- [x] Improving AI Classification Accuracy and Categories
+- [x] Implementing Remember Me Feature
+    - [x] Add `shared_preferences` dependency
+    - [x] Update `AuthViewModel` with remember me logic
+    - [x] Update `LoginView` UI and initialization logic
+    - [x] Verify Remember Me functionality

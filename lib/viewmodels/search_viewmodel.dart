@@ -23,6 +23,9 @@ class SearchViewModel extends ChangeNotifier {
     'Electronics',
     'IDs & Cards',
     'Bags & Wallets',
+    'Keys & Lanyards',
+    'Books & Stationery',
+    'Clothing & Accessories',
     'Other',
   ];
   String _selectedCategory = 'Any Category';

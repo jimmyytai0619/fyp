@@ -1,7 +1,10 @@
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class AuthViewModel extends ChangeNotifier {
+  static const String _rememberMeKey = 'remembered_email';
+
   bool _isLoading = false;
   bool get isLoading => _isLoading;
 
@@ -10,10 +13,17 @@ class AuthViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
+  // Returns the saved email if "Remember Me" was checked previously.
+  Future<String?> getRememberedEmail() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_rememberMeKey);
+  }
+
   // Returns null on success, or a user-friendly error string on failure.
   Future<String?> login({
     required String email,
     required String password,
+    bool rememberMe = false,
   }) async {
     _setLoading(true);
     try {
@@ -21,6 +31,15 @@ class AuthViewModel extends ChangeNotifier {
         email: email.trim(),
         password: password,
       );
+
+      // Handle "Remember Me" persistence
+      final prefs = await SharedPreferences.getInstance();
+      if (rememberMe) {
+        await prefs.setString(_rememberMeKey, email.trim());
+      } else {
+        await prefs.remove(_rememberMeKey);
+      }
+
       return null;
     } on AuthException catch (e) {
       return _mapAuthError(e.message);
