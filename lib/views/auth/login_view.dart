@@ -16,6 +16,23 @@ class _LoginViewState extends State<LoginView> {
   final _emailCtrl = TextEditingController();
   final _passwordCtrl = TextEditingController();
   bool _obscure = true;
+  bool _rememberMe = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadRememberedEmail();
+  }
+
+  Future<void> _loadRememberedEmail() async {
+    final email = await context.read<AuthViewModel>().getRememberedEmail();
+    if (email != null && mounted) {
+      setState(() {
+        _emailCtrl.text = email;
+        _rememberMe = true;
+      });
+    }
+  }
 
   @override
   void dispose() {
@@ -31,6 +48,7 @@ class _LoginViewState extends State<LoginView> {
     final error = await context.read<AuthViewModel>().login(
           email: _emailCtrl.text,
           password: _passwordCtrl.text,
+          rememberMe: _rememberMe,
         );
 
     if (!mounted) return;
@@ -420,23 +438,49 @@ class _LoginViewState extends State<LoginView> {
               validator: (v) =>
                   (v == null || v.isEmpty) ? 'Password is required.' : null,
             ),
-            const SizedBox(height: 6),
-            Align(
-              alignment: Alignment.centerRight,
-              child: TextButton(
-                onPressed: _showForgotPasswordDialog,
-                style: TextButton.styleFrom(
-                  padding: EdgeInsets.zero,
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                SizedBox(
+                  height: 24,
+                  width: 24,
+                  child: Checkbox(
+                    value: _rememberMe,
+                    onChanged: (v) => setState(() => _rememberMe = v ?? false),
+                    activeColor: const Color(0xFF1565C0),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                  ),
                 ),
-                child: const Text(
-                  'Forgot Password?',
-                  style: TextStyle(
-                      fontSize: 13,
-                      color: Color(0xFF1565C0),
-                      fontWeight: FontWeight.w600),
+                const SizedBox(width: 8),
+                GestureDetector(
+                  onTap: () => setState(() => _rememberMe = !_rememberMe),
+                  child: const Text(
+                    'Remember Me',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Color(0xFF37474F),
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
                 ),
-              ),
+                const Spacer(),
+                TextButton(
+                  onPressed: _showForgotPasswordDialog,
+                  style: TextButton.styleFrom(
+                    padding: EdgeInsets.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                  child: const Text(
+                    'Forgot Password?',
+                    style: TextStyle(
+                        fontSize: 13,
+                        color: Color(0xFF1565C0),
+                        fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 24),
             _loginButton(),
