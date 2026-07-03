@@ -54,10 +54,17 @@ class ApiService {
     final id = inserted['id'] as String;
 
     if (securityAnswer != null && securityAnswer.trim().isNotEmpty) {
-      await _client.from('item_secrets').insert({
-        'item_id': id,
-        'answer': securityAnswer.trim(),
-      });
+      try {
+        await _client.from('item_secrets').insert({
+          'item_id': id,
+          'answer': securityAnswer.trim(),
+        });
+      } catch (e) {
+        // Roll back the just-created found item so a failed answer insert can't
+        // leave an orphaned/duplicate row behind. Then surface the error.
+        await _client.from('found_items').delete().eq('id', id);
+        rethrow;
+      }
     }
 
     return id;

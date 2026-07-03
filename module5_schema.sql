@@ -3,6 +3,14 @@
 --  Run this whole file in the Supabase SQL Editor.
 -- ============================================================
 
+-- 0. Remove any stale/old versions of these objects so the correct Module 5
+--    structure is guaranteed. These tables hold no real app data.
+drop function if exists public.submit_claim(uuid, text);
+drop table if exists public.claim_messages cascade;
+drop table if exists public.messages       cascade;  -- old unused chat table
+drop table if exists public.claims         cascade;
+drop table if exists public.item_secrets   cascade;
+
 -- 1. Security question lives on the found item (the ANSWER is stored separately)
 alter table public.found_items add column if not exists security_question text;
 

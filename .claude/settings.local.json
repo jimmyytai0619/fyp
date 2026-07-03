@@ -12,7 +12,12 @@
       "Bash(py --version)",
       "Bash(pip --version)",
       "Bash(flutter pub *)",
-      "Bash(python -m py_compile main.py)"
+      "Bash(python -m py_compile main.py)",
+      "Bash(venv/Scripts/python.exe -m uvicorn main:app --host 127.0.0.1 --port 8000)",
+      "Bash(curl -s http://127.0.0.1:8000/health)",
+      "Skill(run)",
+      "Skill(run:*)",
+      "PowerShell($adb = \"$env:LOCALAPPDATA\\\\Android\\\\Sdk\\\\platform-tools\\\\adb.exe\"; if \\(Test-Path $adb\\) { Write-Output \"FOUND: $adb\"; & $adb devices } else { Write-Output \"NOT at $adb\"; Get-ChildItem \"$env:LOCALAPPDATA\\\\Android\\\\Sdk\" -ErrorAction SilentlyContinue | Select-Object Name })"
     ]
   }
 }
