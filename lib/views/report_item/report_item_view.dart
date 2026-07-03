@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
 
+import '../../services/classification_service.dart';
 import '../../viewmodels/report_item_viewmodel.dart';
 
 class ReportItemView extends StatefulWidget {
@@ -29,6 +30,9 @@ class _ReportItemViewState extends State<ReportItemView> {
     'Other',
   ];
   String _selectedCategory = 'Electronics';
+
+  // Date the item was found (FR 2.5). Defaults to today; user can change.
+  DateTime? _dateFound = DateTime.now();
 
   static const _primaryBlue = Color(0xFF1565C0);
   static const _teal = Color(0xFF00897B);
@@ -76,9 +80,10 @@ class _ReportItemViewState extends State<ReportItemView> {
                 child: Icon(Icons.camera_alt_rounded, color: _primaryBlue),
               ),
               title: const Text('Take a Photo'),
-              onTap: () {
+              onTap: () async {
                 Navigator.pop(context);
-                vm.pickImage(ImageSource.camera);
+                await vm.pickImage(ImageSource.camera);
+                _applySuggestion(vm);
               },
             ),
             ListTile(
@@ -87,9 +92,10 @@ class _ReportItemViewState extends State<ReportItemView> {
                 child: Icon(Icons.photo_library_rounded, color: _teal),
               ),
               title: const Text('Choose from Gallery'),
-              onTap: () {
+              onTap: () async {
                 Navigator.pop(context);
-                vm.pickImage(ImageSource.gallery);
+                await vm.pickImage(ImageSource.gallery);
+                _applySuggestion(vm);
               },
             ),
             const SizedBox(height: 16),
@@ -112,6 +118,7 @@ class _ReportItemViewState extends State<ReportItemView> {
         location: _locationCtrl.text,
         description: _descCtrl.text,
         tags: _tagsCtrl.text,
+        dateFound: widget.isLost ? null : _dateFound,
         securityQuestion: _questionCtrl.text,
         securityAnswer: _answerCtrl.text,
       );
@@ -179,6 +186,7 @@ class _ReportItemViewState extends State<ReportItemView> {
                   padding: const EdgeInsets.all(20),
                   children: [
                     _imageSection(vm),
+                    _aiSuggestionSection(vm),
                     const SizedBox(height: 24),
                     _formCard(vm),
                     const SizedBox(height: 24),
@@ -199,6 +207,314 @@ class _ReportItemViewState extends State<ReportItemView> {
         ),
       ),
     );
+  }
+
+  // ── AI auto-classification (Modules 2 & 3) ────────────────────────────────
+
+  /// Pushes the on-device ML Kit suggestion into the form: auto-selects the
+  /// category and appends the detected colour as a tag. The user can still
+  /// override everything (the dropdown is the human-in-the-loop control).
+  // ── AI auto-classification (Modules 2 & 3, Algorithm 4.7.1) ───────────────
+
+  /// Applies the AI result according to its confidence tier:
+  ///  - HIGH (>=75%): auto-fill category + description (+ colour/brand tags)
+  ///  - MEDIUM (50-75%): user picks from suggested category chips
+  ///  - LOW (<50%): nothing auto-filled; the user enters details manually
+  void _applySuggestion(ReportItemViewModel vm) {
+    final c = vm.classification;
+    if (c == null || !mounted) return;
+    if (c.isHigh) {
+      setState(() =>
+          _fillFromAi(c.category, c.description, c.colorName, c.possibleBrand));
+    }
+    // medium/low: wait for the user (chips / manual dropdown)
+  }
+
+  /// Commits an AI category + description into the form fields.
+  void _fillFromAi(
+      String category, String description, String colorName, String? brand) {
+    if (ClassificationService.categories.contains(category)) {
+      _selectedCategory = category;
+    }
+    if (description.isNotEmpty && _descCtrl.text.trim().isEmpty) {
+      _descCtrl.text = description;
+    }
+    _addTag(colorName == 'Unknown' ? null : colorName);
+    _addTag(brand);
+  }
+
+  void _addTag(String? value) {
+    if (value == null || value.trim().isEmpty) return;
+    if (_tagsCtrl.text.toLowerCase().contains(value.toLowerCase())) return;
+    _tagsCtrl.text = _tagsCtrl.text.trim().isEmpty
+        ? value
+        : '${_tagsCtrl.text.trim()}, $value';
+  }
+
+  /// Medium-tier: the user taps one of the suggested category chips.
+  void _chooseSuggestion(ReportItemViewModel vm, CategorySuggestion sug) {
+    final c = vm.classification;
+    setState(() => _fillFromAi(
+        sug.category, c?.description ?? '', c?.colorName ?? 'Unknown',
+        c?.possibleBrand));
+  }
+
+  Widget _aiSuggestionSection(ReportItemViewModel vm) {
+    if (vm.isClassifying) {
+      return _infoCard(
+        const Color(0xFFDDE3F0),
+        Colors.white,
+        const Row(children: [
+          SizedBox(
+              width: 18,
+              height: 18,
+              child: CircularProgressIndicator(strokeWidth: 2)),
+          SizedBox(width: 12),
+          Text('Analysing image on-device…',
+              style: TextStyle(fontWeight: FontWeight.w600)),
+        ]),
+      );
+    }
+    final c = vm.classification;
+    if (c == null) return const SizedBox.shrink();
+    switch (c.tier) {
+      case ConfidenceTier.high:
+        return _highCard(c);
+      case ConfidenceTier.medium:
+        return _mediumCard(vm, c);
+      case ConfidenceTier.low:
+        return _lowCard();
+    }
+  }
+
+  Widget _cardHeader(IconData icon, String title, Color accent,
+      {double? confidence}) {
+    return Row(
+      children: [
+        Icon(icon, color: accent, size: 20),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(title,
+              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
+        ),
+        if (confidence != null && confidence > 0)
+          Text('${(confidence * 100).toStringAsFixed(0)}%',
+              style: TextStyle(
+                  color: accent, fontWeight: FontWeight.w700, fontSize: 13)),
+      ],
+    );
+  }
+
+  List<Widget> _attributeChips(dynamic c) => [
+        _chip(Icons.category_outlined, c.category),
+        if (c.colorName != 'Unknown')
+          _chip(Icons.palette_outlined, c.colorName, swatchHex: c.colorHex),
+        if (c.material != null)
+          _chip(Icons.texture_rounded, c.material as String),
+        if (c.possibleBrand != null)
+          _chip(Icons.sell_outlined, 'Brand? ${c.possibleBrand}'),
+      ];
+
+  // HIGH (>=75%) — auto-filled, green.
+  Widget _highCard(dynamic c) {
+    const accent = _teal;
+    return _infoCard(
+      accent.withValues(alpha: 0.5),
+      const Color(0xFFE8F5E9),
+      Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _cardHeader(Icons.auto_awesome_rounded, 'AI Suggestion · Auto-filled',
+              accent,
+              confidence: c.confidence as double),
+          const SizedBox(height: 10),
+          Wrap(spacing: 8, runSpacing: 8, children: _attributeChips(c)),
+          const SizedBox(height: 10),
+          Text(
+            'Category and description filled automatically. You can edit any '
+            'field below before submitting.',
+            style: TextStyle(
+                fontSize: 12, color: Colors.green.shade900, height: 1.4),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // MEDIUM (50-75%) — pick from suggestions, blue.
+  Widget _mediumCard(ReportItemViewModel vm, dynamic c) {
+    const accent = _primaryBlue;
+    final List<CategorySuggestion> sugs =
+        (c.suggestions as List).cast<CategorySuggestion>();
+    return _infoCard(
+      accent.withValues(alpha: 0.4),
+      const Color(0xFFE3F2FD),
+      Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _cardHeader(Icons.help_outline_rounded,
+              'Not fully sure — pick a category', accent,
+              confidence: c.confidence as double),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final sug in sugs)
+                _suggestionActionChip(
+                  '${sug.category} · ${(sug.confidence * 100).toStringAsFixed(0)}%',
+                  () => _chooseSuggestion(vm, sug),
+                ),
+            ],
+          ),
+          if (c.colorName != 'Unknown' || c.possibleBrand != null) ...[
+            const SizedBox(height: 10),
+            Wrap(spacing: 8, runSpacing: 8, children: [
+              if (c.colorName != 'Unknown')
+                _chip(Icons.palette_outlined, c.colorName as String,
+                    swatchHex: c.colorHex as String),
+              if (c.possibleBrand != null)
+                _chip(Icons.sell_outlined, 'Brand? ${c.possibleBrand}'),
+            ]),
+          ],
+          const SizedBox(height: 8),
+          Text('Tap a suggestion to fill the form, or choose manually below.',
+              style: TextStyle(
+                  fontSize: 12, color: Colors.blue.shade900, height: 1.4)),
+        ],
+      ),
+    );
+  }
+
+  // LOW (<50%) — unrecognized, orange.
+  Widget _lowCard() {
+    const accent = Color(0xFFE65100);
+    return _infoCard(
+      accent.withValues(alpha: 0.5),
+      const Color(0xFFFFF3E0),
+      Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _cardHeader(
+              Icons.error_outline_rounded, 'Item not recognized', accent),
+          const SizedBox(height: 8),
+          Text(
+            'The AI could not confidently identify this item. Please choose the '
+            'category and enter a description manually.',
+            style: TextStyle(
+                fontSize: 12, color: Colors.brown.shade800, height: 1.4),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _infoCard(Color border, Color bg, Widget child) => Container(
+        margin: const EdgeInsets.only(top: 16),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: bg,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: border),
+        ),
+        child: child,
+      );
+
+  Widget _suggestionActionChip(String label, VoidCallback onTap) {
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(20),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(20),
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: _primaryBlue.withValues(alpha: 0.5)),
+          ),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            const Icon(Icons.add_rounded, size: 16, color: _primaryBlue),
+            const SizedBox(width: 4),
+            Text(label,
+                style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: _primaryBlue)),
+          ]),
+        ),
+      ),
+    );
+  }
+
+  Widget _chip(IconData icon, String label, {String? swatchHex}) {
+    Color? swatch;
+    if (swatchHex != null) {
+      swatch = Color(int.parse(swatchHex.replaceFirst('#', '0xFF')));
+    }
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFDDE3F0)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (swatch != null)
+            Container(
+              width: 14,
+              height: 14,
+              margin: const EdgeInsets.only(right: 6),
+              decoration: BoxDecoration(
+                color: swatch,
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.black12),
+              ),
+            )
+          else
+            Padding(
+              padding: const EdgeInsets.only(right: 6),
+              child: Icon(icon, size: 15, color: const Color(0xFF607D8B)),
+            ),
+          Text(label,
+              style:
+                  const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+        ],
+      ),
+    );
+  }
+
+  // ── Date Found field (FR 2.5) ─────────────────────────────────────────────
+
+  Widget _dateField() {
+    final d = _dateFound;
+    final text = d == null
+        ? 'Select date'
+        : '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}';
+    return InkWell(
+      onTap: _pickDate,
+      borderRadius: BorderRadius.circular(12),
+      child: InputDecorator(
+        decoration: _inputDeco(hint: 'Select date', icon: Icons.event_outlined),
+        child: Text(text,
+            style: TextStyle(
+                fontSize: 14,
+                color: d == null ? const Color(0xFFBDBDBD) : null)),
+      ),
+    );
+  }
+
+  Future<void> _pickDate() async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _dateFound ?? now,
+      firstDate: DateTime(now.year - 1),
+      lastDate: now,
+    );
+    if (picked != null) setState(() => _dateFound = picked);
   }
 
   // ── Image section ─────────────────────────────────────────────────────────
@@ -341,7 +657,13 @@ class _ReportItemViewState extends State<ReportItemView> {
             },
           ),
           const SizedBox(height: 20),
-          _label('Notes / Description'),
+          if (!widget.isLost) ...[
+            _label('Date Found *'),
+            const SizedBox(height: 8),
+            _dateField(),
+            const SizedBox(height: 20),
+          ],
+          _label(widget.isLost ? 'Notes / Description' : 'Description *'),
           const SizedBox(height: 8),
           TextFormField(
             controller: _descCtrl,
@@ -350,6 +672,12 @@ class _ReportItemViewState extends State<ReportItemView> {
             decoration: _inputDeco(
                 hint: 'Any distinguishing features, colour, brand…',
                 icon: Icons.notes_rounded),
+            validator: (v) {
+              if (widget.isLost) return null;
+              return (v == null || v.trim().isEmpty)
+                  ? 'Description is required.'
+                  : null;
+            },
           ),
           const SizedBox(height: 20),
           _label('Tags (comma separated)'),
