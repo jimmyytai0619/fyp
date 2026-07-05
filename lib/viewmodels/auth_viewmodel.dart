@@ -50,6 +50,11 @@ class AuthViewModel extends ChangeNotifier {
     }
   }
 
+  // True when the last successful register auto-logged the user in (i.e. email
+  // confirmation is turned OFF in Supabase, so no OTP step is needed).
+  bool _lastRegisterAutoLoggedIn = false;
+  bool get lastRegisterAutoLoggedIn => _lastRegisterAutoLoggedIn;
+
   // Returns null on success, or a user-friendly error string on failure.
   Future<String?> register({
     required String email,
@@ -60,7 +65,7 @@ class AuthViewModel extends ChangeNotifier {
   }) async {
     _setLoading(true);
     try {
-      await Supabase.instance.client.auth.signUp(
+      final response = await Supabase.instance.client.auth.signUp(
         email: email.trim(),
         password: password,
         data: {
@@ -69,6 +74,8 @@ class AuthViewModel extends ChangeNotifier {
           'phone': phone.trim(),
         },
       );
+      // If a session came back, confirmation is disabled → skip the OTP screen.
+      _lastRegisterAutoLoggedIn = response.session != null;
       return null;
     } on AuthException catch (e) {
       return _mapAuthError(e.message);

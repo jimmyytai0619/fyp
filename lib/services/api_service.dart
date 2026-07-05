@@ -131,6 +131,14 @@ class ApiService {
     await _client.from('claims').update({'status': status}).eq('id', claimId);
   }
 
+  /// Flags a found item as returned so it counts toward the finder's
+  /// "Items Returned" contribution stat. Best-effort.
+  Future<void> markFoundItemReturned(String foundItemId) async {
+    await _client
+        .from('found_items')
+        .update({'is_returned': true}).eq('id', foundItemId);
+  }
+
   /// FR 5.6 — Records the chosen campus safe zone for the handover.
   Future<void> setClaimSafeZone(String claimId, String zone) async {
     await _client.from('claims').update({'safe_zone': zone}).eq('id', claimId);
@@ -185,9 +193,9 @@ class ApiService {
         .toList();
   }
 
-  /// Reports an item the user has LOST. The image is optional because a user
-  /// may not always have a photo of their missing belonging.
-  Future<void> reportLostItem({
+  /// Reports an item the user has LOST and returns the new row's id. The image
+  /// is optional, but a photo is what lets the background agent match it.
+  Future<String> reportLostItem({
     File? image,
     required String category,
     required String locationLost,
@@ -206,7 +214,7 @@ class ApiService {
       imageUrl = _client.storage.from('found-items').getPublicUrl(fileName);
     }
 
-    await _client.from('lost_items').insert({
+    final inserted = await _client.from('lost_items').insert({
       'user_id': userId,
       'category': category,
       'location_found': locationLost,
@@ -214,7 +222,19 @@ class ApiService {
       'tags': tags,
       'image_url': imageUrl,
       'created_at': DateTime.now().toIso8601String(),
-    });
+    }).select('id').single();
+
+    return inserted['id'] as String;
+  }
+
+  /// FR 4.3 (reverse direction) — Asks the backend to match a newly reported
+  /// LOST item against items that were ALREADY found, so the loser is alerted
+  /// even when the finder posted first. Best-effort.
+  Future<void> ingestLostItem(String itemId) async {
+    final uri = Uri.parse('$aiBackendBaseUrl/ingest-lost');
+    final request = http.MultipartRequest('POST', uri)
+      ..fields['item_id'] = itemId;
+    await request.send().timeout(const Duration(seconds: 60));
   }
 
   /// Deletes one of the current user's own reports. RLS ensures a user can

@@ -250,7 +250,7 @@ class _ClaimCard extends StatelessWidget {
             const SizedBox(width: 10),
             Expanded(
               child: OutlinedButton(
-                onPressed: () => vm.markReturned(claim.id),
+                onPressed: () => vm.markReturned(claim),
                 style: OutlinedButton.styleFrom(
                   foregroundColor: const Color(0xFF2E7D32),
                   side: const BorderSide(color: Color(0xFF2E7D32)),

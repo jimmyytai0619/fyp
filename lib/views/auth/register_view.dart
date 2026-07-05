@@ -40,7 +40,8 @@ class _RegisterViewState extends State<RegisterView> {
     final email = _emailCtrl.text.trim();
     final studentId = email.contains('@') ? email.split('@').first : email;
 
-    final error = await context.read<AuthViewModel>().register(
+    final vm = context.read<AuthViewModel>();
+    final error = await vm.register(
           email: email,
           password: _passwordCtrl.text,
           fullName: _nameCtrl.text,
@@ -52,6 +53,10 @@ class _RegisterViewState extends State<RegisterView> {
 
     if (error != null) {
       _showSnackbar(error, isError: true);
+    } else if (vm.lastRegisterAutoLoggedIn) {
+      // Email confirmation is OFF — the account is ready, go straight in.
+      Navigator.of(context)
+          .pushNamedAndRemoveUntil('/dashboard', (route) => false);
     } else {
       Navigator.of(context).push(
         MaterialPageRoute(

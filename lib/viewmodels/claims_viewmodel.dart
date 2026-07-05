@@ -41,7 +41,21 @@ class ClaimsViewModel extends ChangeNotifier {
 
   Future<void> approve(String claimId) => _update(claimId, 'Verified');
   Future<void> reject(String claimId) => _update(claimId, 'Rejected');
-  Future<void> markReturned(String claimId) => _update(claimId, 'Returned');
+
+  /// Marks the claim returned AND flags the found item so it counts toward the
+  /// finder's "Items Returned" contribution stat.
+  Future<void> markReturned(Claim claim) async {
+    try {
+      await ApiService().updateClaimStatus(claim.id, 'Returned');
+      try {
+        await ApiService().markFoundItemReturned(claim.foundItemId);
+      } catch (_) {/* stat is best-effort; claim status already updated */}
+      await fetchAll();
+    } catch (e) {
+      _errorMessage = 'Could not update the claim. Please try again.';
+      notifyListeners();
+    }
+  }
 
   Future<void> _update(String claimId, String status) async {
     try {
