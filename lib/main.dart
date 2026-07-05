@@ -37,10 +37,13 @@ class SmartMatchApp extends StatefulWidget {
 class _SmartMatchAppState extends State<SmartMatchApp> {
   final _navigatorKey = GlobalKey<NavigatorState>();
   late final StreamSubscription<AuthState> _authSubscription;
+  bool _initialized = false;
+  bool _isLoggedIn = false;
 
   @override
   void initState() {
     super.initState();
+    _checkInitialSession();
     // Listen for Supabase auth events (e.g. password recovery deep link)
     _authSubscription =
         Supabase.instance.client.auth.onAuthStateChange.listen((data) {
@@ -51,6 +54,22 @@ class _SmartMatchAppState extends State<SmartMatchApp> {
     });
   }
 
+  Future<void> _checkInitialSession() async {
+    final session = Supabase.instance.client.auth.currentSession;
+    if (session != null) {
+      final authVm = context.read<AuthViewModel>();
+      final autoLogin = await authVm.isAutoLoginEnabled();
+      if (autoLogin) {
+        _isLoggedIn = true;
+      } else {
+        // If auto-login is NOT enabled, force sign out even if Supabase
+        // persisted the session automatically.
+        await authVm.signOut();
+      }
+    }
+    setState(() => _initialized = true);
+  }
+
   @override
   void dispose() {
     _authSubscription.cancel();
@@ -59,6 +78,14 @@ class _SmartMatchAppState extends State<SmartMatchApp> {
 
   @override
   Widget build(BuildContext context) {
+    if (!_initialized) {
+      return const MaterialApp(
+        home: Scaffold(
+          body: Center(child: CircularProgressIndicator()),
+        ),
+      );
+    }
+
     return MaterialApp(
       navigatorKey: _navigatorKey,
       title: 'TAR UMT SmartMatch',
@@ -71,7 +98,7 @@ class _SmartMatchAppState extends State<SmartMatchApp> {
         fontFamily: 'Roboto',
         useMaterial3: true,
       ),
-      home: const LoginView(),
+      home: _isLoggedIn ? const DashboardView() : const LoginView(),
       routes: {
         '/login': (_) => const LoginView(),
         '/dashboard': (_) => const DashboardView(),

@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 class AuthViewModel extends ChangeNotifier {
   static const String _rememberMeKey = 'remembered_email';
+  static const String _autoLoginKey = 'auto_login';
 
   bool _isLoading = false;
   bool get isLoading => _isLoading;
@@ -11,6 +12,12 @@ class AuthViewModel extends ChangeNotifier {
   void _setLoading(bool value) {
     _isLoading = value;
     notifyListeners();
+  }
+
+  // Returns true if the user opted for auto-login.
+  Future<bool> isAutoLoginEnabled() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_autoLoginKey) ?? false;
   }
 
   // Returns the saved email if "Remember Me" was checked previously.
@@ -36,8 +43,10 @@ class AuthViewModel extends ChangeNotifier {
       final prefs = await SharedPreferences.getInstance();
       if (rememberMe) {
         await prefs.setString(_rememberMeKey, email.trim());
+        await prefs.setBool(_autoLoginKey, true);
       } else {
         await prefs.remove(_rememberMeKey);
+        await prefs.setBool(_autoLoginKey, false);
       }
 
       return null;
@@ -135,6 +144,8 @@ class AuthViewModel extends ChangeNotifier {
   }
 
   Future<void> signOut() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_autoLoginKey, false); // Disable auto-login on logout
     await Supabase.instance.client.auth.signOut();
   }
 

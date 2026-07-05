@@ -1,48 +1,46 @@
-# Implementation Plan - Remember Me Feature
+# Implementation Plan - Persistent Auto-Login
 
-This plan outlines the changes required to add a "Remember Me" checkbox to the login page. When checked, the application will persist the user's email and automatically populate it the next time the login page is opened.
+This plan outlines the changes required to transition the "Remember Me" feature from just remembering the email to a full persistent login (Auto-Login). If the user checks "Remember Me", they will be automatically directed to the Dashboard upon app restart.
 
 ## User Review Required
 
-> [!NOTE]
-> This implementation will persist the **email only** for security reasons. Persisting passwords in plain text is not recommended.
+> [!IMPORTANT]
+> This will use Supabase's built-in session persistence. If the user logs out, they will always return to the Login screen.
 
 ## Proposed Changes
 
-### Dependencies
+### main.dart
 
-#### [pubspec.yaml](file:///C:/RSW/FYP/fyp/pubspec.yaml)
-- Added `shared_preferences` for local storage of the remembered email. (Already done via shell command).
+#### [main.dart](file:///C:/RSW/FYP/fyp/lib/main.dart)
+- Update `SmartMatchApp` to determine the initial route based on whether a valid Supabase session exists.
+- In `build`, set `home` to either `DashboardView` (if logged in) or `LoginView` (if not).
 
-### ViewModels
+### AuthViewModel
 
 #### [auth_viewmodel.dart](file:///C:/RSW/FYP/fyp/lib/viewmodels/auth_viewmodel.dart)
-- Update the `login` method to accept a `rememberMe` boolean.
-- Add logic to save or clear the email in `shared_preferences` based on the `rememberMe` flag.
-- Add a method `getRememberedEmail()` to retrieve the saved email on initialization.
+- We will keep the `rememberMe` flag during login to satisfy the user's intent.
+- Supabase handles session persistence automatically, but we can use the `rememberMe` flag to decide whether to *persist* that session or not (though standard practice in Supabase is to always persist, we can manually sign out if `rememberMe` was false on next launch, or more simply, just follow the user's request to "Direct login to main page").
 
-### Views
+### LoginView
 
 #### [login_view.dart](file:///C:/RSW/FYP/fyp/lib/views/auth/login_view.dart)
-- Add a `bool _rememberMe = false` state variable.
-- Add a `CheckboxListTile` or a custom `Row` with a `Checkbox` and "Remember Me" label below the password field.
-- In `initState`, call `authViewModel.getRememberedEmail()` and populate `_emailCtrl` if an email is found.
-- Pass the `_rememberMe` value to the `login` method in `_submit`.
+- Keep the "Remember Me" checkbox as the toggle for this behavior.
 
 ## Verification Plan
 
 ### Manual Verification
-1. **Open Login Page**: Verify the "Remember Me" checkbox is visible.
-2. **Login with Remember Me Checked**:
-   - Enter email and password.
-   - Check "Remember Me".
-   - Click "Login".
-   - Logout or restart the app.
-   - Verify that the email field is pre-filled.
-3. **Login with Remember Me Unchecked**:
-   - Enter a different email.
-   - Ensure "Remember Me" is unchecked.
-   - Click "Login".
-   - Logout or restart the app.
-   - Verify that the email field is empty (or cleared if it was previously saved).
-4. **Security Check**: Verify that the password field is **never** pre-filled.
+1. **Login with Remember Me Checked**:
+   - Log in.
+   - Close the app (kill process).
+   - Reopen the app.
+   - Verify it goes directly to the **Dashboard**.
+2. **Login with Remember Me Unchecked**:
+   - Log in.
+   - Close the app.
+   - Reopen the app.
+   - Verify it goes to the **Login Screen**.
+3. **Logout Check**:
+   - Log out from the Dashboard.
+   - Verify it returns to the **Login Screen**.
+   - Close and reopen.
+   - Verify it stays on the **Login Screen**.
