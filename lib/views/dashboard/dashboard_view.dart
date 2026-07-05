@@ -153,14 +153,14 @@ class _HomeTab extends StatelessWidget {
     _ActionCard(
       icon: Icons.add_a_photo_rounded,
       label: 'Report Found Item',
-      description: 'Add an item you picked up',
+      description: "You found someone's lost item",
       color: Color(0xFF00897B),
       route: 'report',
     ),
     _ActionCard(
       icon: Icons.report_gmailerrorred_rounded,
       label: 'Report Lost Item',
-      description: 'Get alerted when it\'s found',
+      description: 'You lost item',
       color: Color(0xFFD81B60),
       route: 'report_lost',
     ),
