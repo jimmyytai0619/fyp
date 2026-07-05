@@ -17,7 +17,12 @@
       "Bash(curl -s http://127.0.0.1:8000/health)",
       "Skill(run)",
       "Skill(run:*)",
-      "PowerShell($adb = \"$env:LOCALAPPDATA\\\\Android\\\\Sdk\\\\platform-tools\\\\adb.exe\"; if \\(Test-Path $adb\\) { Write-Output \"FOUND: $adb\"; & $adb devices } else { Write-Output \"NOT at $adb\"; Get-ChildItem \"$env:LOCALAPPDATA\\\\Android\\\\Sdk\" -ErrorAction SilentlyContinue | Select-Object Name })"
+      "PowerShell($adb = \"$env:LOCALAPPDATA\\\\Android\\\\Sdk\\\\platform-tools\\\\adb.exe\"; if \\(Test-Path $adb\\) { Write-Output \"FOUND: $adb\"; & $adb devices } else { Write-Output \"NOT at $adb\"; Get-ChildItem \"$env:LOCALAPPDATA\\\\Android\\\\Sdk\" -ErrorAction SilentlyContinue | Select-Object Name })",
+      "Bash(git pull *)",
+      "Bash(git checkout *)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git push *)"
     ]
   }
 }

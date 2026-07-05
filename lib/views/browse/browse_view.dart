@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../models/item_report.dart';
+import '../../models/match_result.dart';
 import '../../viewmodels/browse_viewmodel.dart';
+import '../search/item_detail_view.dart';
 
 class BrowseView extends StatefulWidget {
   const BrowseView({super.key});
@@ -235,9 +237,29 @@ class _ItemCard extends StatelessWidget {
 
   const _ItemCard({required this.item});
 
+  void _openDetail(BuildContext context) {
+    // Browse uses ItemReport; the detail/claim screen takes a MatchResult.
+    // No AI score here, so confidenceScore is 0 (the badge is hidden for it).
+    final match = MatchResult(
+      id: item.id,
+      imageUrl: item.imageUrl,
+      category: item.category,
+      locationFound: item.locationFound,
+      description: item.description,
+      tags: const [],
+      confidenceScore: 0,
+      createdAt: item.createdAt,
+    );
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => ItemDetailView(item: match)),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return GestureDetector(
+      onTap: () => _openDetail(context),
+      child: Container(
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
@@ -305,6 +327,7 @@ class _ItemCard extends StatelessWidget {
             ),
           ),
         ],
+      ),
       ),
     );
   }

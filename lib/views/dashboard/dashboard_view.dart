@@ -26,13 +26,22 @@ class _DashboardViewState extends State<DashboardView> {
   int _currentIndex = 0;
   RealtimeChannel? _notifChannel;
 
+  // Shared so the realtime alert and the Messages tab use the same list.
+  final NotificationsViewModel _notifVM = NotificationsViewModel();
+
   static const _primaryBlue = Color(0xFF1565C0);
   static const _bgColor = Color(0xFFF0F4FF);
 
   @override
   void initState() {
     super.initState();
+    _notifVM.fetchNotifications();
     _subscribeToNotifications();
+  }
+
+  void _openMessagesTab() {
+    setState(() => _currentIndex = 1);
+    _notifVM.fetchNotifications(); // pull the latest so it isn't stale
   }
 
   /// FR 4.4 — Listens over Supabase Realtime (WebSockets) for new notification
@@ -55,6 +64,8 @@ class _DashboardViewState extends State<DashboardView> {
           callback: (payload) {
             final title =
                 (payload.newRecord['title'] as String?) ?? 'New match found';
+            // Refresh the inbox list immediately so the new alert is there.
+            _notifVM.fetchNotifications();
             if (!mounted) return;
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
@@ -72,7 +83,7 @@ class _DashboardViewState extends State<DashboardView> {
                 action: SnackBarAction(
                   label: 'VIEW',
                   textColor: Colors.white,
-                  onPressed: () => setState(() => _currentIndex = 1),
+                  onPressed: _openMessagesTab,
                 ),
               ),
             );
@@ -86,6 +97,7 @@ class _DashboardViewState extends State<DashboardView> {
     if (_notifChannel != null) {
       Supabase.instance.client.removeChannel(_notifChannel!);
     }
+    _notifVM.dispose();
     super.dispose();
   }
 
@@ -97,9 +109,10 @@ class _DashboardViewState extends State<DashboardView> {
         index: _currentIndex,
         children: [
           const _HomeTab(),
-          // NotificationsViewModel is scoped to the Messages tab only.
-          ChangeNotifierProvider(
-            create: (_) => NotificationsViewModel(),
+          // Shared NotificationsViewModel (owned by this State) so live alerts
+          // and the Messages tab stay in sync.
+          ChangeNotifierProvider.value(
+            value: _notifVM,
             child: const NotificationsView(),
           ),
           // ProfileViewModel is scoped to the Profile tab only.
@@ -111,7 +124,10 @@ class _DashboardViewState extends State<DashboardView> {
       ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _currentIndex,
-        onDestinationSelected: (i) => setState(() => _currentIndex = i),
+        onDestinationSelected: (i) {
+          setState(() => _currentIndex = i);
+          if (i == 1) _notifVM.fetchNotifications(); // refresh inbox on open
+        },
         backgroundColor: Colors.white,
         indicatorColor: _primaryBlue.withValues(alpha: 0.12),
         destinations: const [
@@ -153,14 +169,14 @@ class _HomeTab extends StatelessWidget {
     _ActionCard(
       icon: Icons.add_a_photo_rounded,
       label: 'Report Found Item',
-      description: 'Add an item you picked up',
+      description: "You found someone's lost item",
       color: Color(0xFF00897B),
       route: 'report',
     ),
     _ActionCard(
       icon: Icons.report_gmailerrorred_rounded,
       label: 'Report Lost Item',
-      description: 'Get alerted when it\'s found',
+      description: 'You lost item',
       color: Color(0xFFD81B60),
       route: 'report_lost',
     ),

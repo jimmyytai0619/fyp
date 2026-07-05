@@ -93,37 +93,38 @@ class ItemDetailView extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Confidence badge
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 14, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: badgeColor,
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(Icons.auto_awesome,
-                                color: Colors.white, size: 16),
-                            const SizedBox(width: 6),
-                            Text(
-                              '${score.toStringAsFixed(1)}% Match',
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w700,
-                                fontSize: 14,
+                  // Confidence badge — only shown for AI search results (score > 0)
+                  if (score > 0) ...[
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 14, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: badgeColor,
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.auto_awesome,
+                                  color: Colors.white, size: 16),
+                              const SizedBox(width: 6),
+                              Text(
+                                '${score.toStringAsFixed(1)}% Match',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 14,
+                                ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
-                      ),
-                    ],
-                  ),
-
-                  const SizedBox(height: 20),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+                  ],
                   _detailCard(children: [
                     _row(Icons.category_outlined, 'Category', item.category),
                     const Divider(height: 24),

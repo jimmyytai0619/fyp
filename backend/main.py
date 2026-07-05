@@ -275,3 +275,72 @@ async def ingest_found(item_id: str = Form(...)):
             print(f"(note) could not insert notification: {e}")
 
     return {"notified": notified}
+
+
+@app.post("/ingest-lost")
+async def ingest_lost(item_id: str = Form(...)):
+    """
+    Reverse-direction matching. Called when a new LOST item is reported.
+    Compares it against every already-reported FOUND item and, if a match is
+    above NOTIFY_THRESHOLD, alerts the LOSER — so it works even when the finder
+    posted first.
+    """
+    if supabase is None:
+        raise HTTPException(status_code=500, detail="Supabase is not configured.")
+
+    # 1. Load the newly reported lost item
+    try:
+        lost_rows = (
+            supabase.table(LOST_TABLE).select("*").eq("id", item_id).limit(1)
+            .execute().data
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Database error: {e}")
+    if not lost_rows:
+        raise HTTPException(status_code=404, detail="Lost item not found.")
+
+    lost = lost_rows[0]
+    lost_vec = embedding_for_row(LOST_TABLE, lost)
+    if lost_vec is None:
+        return {"notified": 0, "detail": "lost item has no usable image"}
+
+    # 2. Compare against all found items
+    try:
+        found_rows = supabase.table(FOUND_TABLE).select("*").execute().data or []
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Database error: {e}")
+
+    # Find the single best match so we don't spam the loser with duplicates.
+    best_score = 0.0
+    best_found = None
+    for fr in found_rows:
+        fvec = embedding_for_row(FOUND_TABLE, fr)
+        if fvec is None:
+            continue
+        score = cosine_similarity(lost_vec, fvec) * 100.0
+        if score > best_score:
+            best_score = score
+            best_found = fr
+
+    if best_found is None or best_score < NOTIFY_THRESHOLD:
+        return {"notified": 0, "best_score": round(best_score, 1)}
+
+    # 3. Alert the loser (owner of this lost report)
+    try:
+        supabase.table("notifications").insert(
+            {
+                "user_id": lost.get("user_id"),
+                "title": f"Possible match found ({round(best_score)}%)",
+                "message": (
+                    f"A {best_found.get('category', 'item')} matching your lost "
+                    f"report may already be waiting — reported found at "
+                    f"{best_found.get('location_found', 'campus')}."
+                ),
+                "is_read": False,
+            }
+        ).execute()
+    except Exception as e:
+        print(f"(note) could not insert notification: {e}")
+        return {"notified": 0}
+
+    return {"notified": 1, "best_score": round(best_score, 1)}

@@ -91,17 +91,23 @@ class ProfileViewModel extends ChangeNotifier {
         .select()
         .eq('user_id', uid)
         .count(CountOption.exact);
-
-    // Subset that have been successfully returned to their owner.
-    final returnedResponse = await client
-        .from('found_items')
-        .select()
-        .eq('user_id', uid)
-        .eq('is_returned', true)
-        .count(CountOption.exact);
-
     _itemsFoundCount = foundResponse.count;
-    _itemsReturnedCount = returnedResponse.count;
+    notifyListeners();
+
+    // Subset that have been successfully returned. Wrapped separately so a
+    // missing `is_returned` column can't wipe out the found count above.
+    try {
+      final returnedResponse = await client
+          .from('found_items')
+          .select()
+          .eq('user_id', uid)
+          .eq('is_returned', true)
+          .count(CountOption.exact);
+      _itemsReturnedCount = returnedResponse.count;
+    } catch (e) {
+      _itemsReturnedCount = 0;
+      debugPrint('[ProfileViewModel] returned-count skipped: $e');
+    }
     notifyListeners();
   }
 

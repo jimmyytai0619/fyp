@@ -114,13 +114,20 @@ class ReportItemViewModel extends ChangeNotifier {
           .toList();
 
       if (isLost) {
-        await ApiService().reportLostItem(
+        final newId = await ApiService().reportLostItem(
           image: _selectedImage,
           category: category,
           locationLost: location.trim(),
           description: description.trim(),
           tags: tagList,
         );
+        // Reverse-direction matching (FR 4.3): if this lost item has a photo,
+        // check it against items already reported found. Best-effort.
+        if (_selectedImage != null) {
+          try {
+            await ApiService().ingestLostItem(newId);
+          } catch (_) {/* ignore — reporting already succeeded */}
+        }
       } else {
         // Persist the found-date inside the description so no DB schema change
         // is required. (To promote it to a column, add `date_found` to
