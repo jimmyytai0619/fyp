@@ -3,7 +3,9 @@ import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../services/classification_service.dart';
+import '../../viewmodels/manage_records_viewmodel.dart';
 import '../../viewmodels/report_item_viewmodel.dart';
+import '../manage_records/manage_records_view.dart';
 
 class ReportItemView extends StatefulWidget {
   /// When true, the screen reports a LOST item; otherwise a FOUND item.
@@ -33,6 +35,98 @@ class _ReportItemViewState extends State<ReportItemView> {
     'Other',
   ];
   String _selectedCategory = 'Electronics';
+
+  // ── Category-specific ownership questions (FR 5.2) ──────────────────────────
+  static const _customQuestion = '__custom__';
+  String? _selectedQuestion;
+
+  static const Map<String, List<String>> _questionsByCategory = {
+    'Electronics': [
+      'What brand is it?',
+      'What is on the lock screen / wallpaper?',
+      'What colour is the casing?',
+      'What model is it?',
+    ],
+    'IDs & Cards': [
+      'What is the full name on the card?',
+      'What is the ID / matric number?',
+      'Which bank or institution issued it?',
+    ],
+    'Bags & Wallets': [
+      'What colour is it?',
+      'What brand is it?',
+      'Name one item inside it.',
+    ],
+    'Keys & Lanyards': [
+      'How many keys are attached?',
+      'What colour is the lanyard?',
+      'Describe the keychain or charm.',
+    ],
+    'Books & Stationery': [
+      'What is the title or subject?',
+      'Whose name is written inside?',
+      'What colour is the cover?',
+    ],
+    'Clothing & Accessories': [
+      'What brand is it?',
+      'What size is it?',
+      'What colour is it?',
+    ],
+    'Other': [
+      'Describe a unique feature of the item.',
+      'What colour is it?',
+    ],
+  };
+
+  List<String> get _currentQuestions =>
+      _questionsByCategory[_selectedCategory] ?? _questionsByCategory['Other']!;
+
+  // ── Cascading location (Building → specific spot) ───────────────────────────
+  static const _otherSpot = 'Other (specify)';
+  String? _selectedArea;
+  String? _selectedSpot;
+
+  static const List<String> _areas = [
+    'Block A',
+    'Block B',
+    'Block C',
+    'Block D',
+    'Library',
+    'Canteen / Cafeteria',
+    'Sports Complex',
+    'Admin Building',
+    'Car Park',
+    'Other',
+  ];
+
+  static const Map<String, List<String>> _spotsByArea = {
+    'Block A': ['Lecture Hall', 'Tutorial Room', 'Lab', 'Corridor', 'Toilet', _otherSpot],
+    'Block B': ['Lab B-01', 'Lab B-02', 'Lecture Hall B', 'Tutorial Room', 'Corridor', 'Toilet', _otherSpot],
+    'Block C': ['Lecture Hall', 'Tutorial Room', 'Lab', 'Corridor', 'Toilet', _otherSpot],
+    'Block D': ['Lecture Hall', 'Tutorial Room', 'Lab', 'Corridor', 'Toilet', _otherSpot],
+    'Library': ['Ground Floor', 'Level 1', 'Level 2', 'Study Area', 'Help Desk', 'Discussion Room', _otherSpot],
+    'Canteen / Cafeteria': ['Seating Area', 'Food Counter', 'Entrance', _otherSpot],
+    'Sports Complex': ['Court', 'Gym', 'Field', 'Changing Room', _otherSpot],
+    'Admin Building': ['Counter', 'Waiting Area', 'Office', _otherSpot],
+    'Car Park': ['Block A Car Park', 'Block B Car Park', 'Motorcycle Bay', _otherSpot],
+    'Other': [_otherSpot],
+  };
+
+  List<String> get _currentSpots => _spotsByArea[_selectedArea] ?? const [];
+
+  /// Combines the two dropdowns (and the custom text) into one location string.
+  String _composedLocation() {
+    if (_selectedArea == null) return _locationCtrl.text.trim();
+    final spot = _selectedSpot == _otherSpot
+        ? _locationCtrl.text.trim()
+        : (_selectedSpot ?? '');
+    return spot.isEmpty ? _selectedArea! : '$_selectedArea — $spot';
+  }
+
+  /// The final question text to save (a preset or the custom one).
+  String _resolvedQuestion() => _selectedQuestion == _customQuestion
+      ? _questionCtrl.text.trim()
+      : (_selectedQuestion ?? '');
 
   // Date the item was found (FR 2.5). Defaults to today; user can change.
   DateTime? _dateFound = DateTime.now();
@@ -118,11 +212,11 @@ class _ReportItemViewState extends State<ReportItemView> {
       await vm.submitReport(
         isLost: widget.isLost,
         category: _selectedCategory,
-        location: _locationCtrl.text,
+        location: _composedLocation(),
         description: _descCtrl.text,
         tags: _tagsCtrl.text,
         dateFound: widget.isLost ? null : _dateFound,
-        securityQuestion: _questionCtrl.text,
+        securityQuestion: _resolvedQuestion(),
         securityAnswer: _answerCtrl.text,
       );
 
@@ -133,7 +227,20 @@ class _ReportItemViewState extends State<ReportItemView> {
             : 'Item added to database!',
         isError: false,
       ));
-      Navigator.of(context).pop(true);
+
+      if (widget.isLost) {
+        // Show the user their newly saved lost report in Manage My Records.
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(
+            builder: (_) => ChangeNotifierProvider(
+              create: (_) => ManageRecordsViewModel(),
+              child: const ManageRecordsView(),
+            ),
+          ),
+        );
+      } else {
+        Navigator.of(context).pop(true);
+      }
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(_snackbar(
@@ -238,6 +345,7 @@ class _ReportItemViewState extends State<ReportItemView> {
       String category, String description, String colorName, String? brand) {
     if (ClassificationService.categories.contains(category)) {
       _selectedCategory = category;
+      _selectedQuestion = null; // question list depends on category
     }
     if (description.isNotEmpty && _descCtrl.text.trim().isEmpty) {
       _descCtrl.text = description;
@@ -635,30 +743,78 @@ class _ReportItemViewState extends State<ReportItemView> {
                 .map((c) => DropdownMenuItem(value: c, child: Text(c)))
                 .toList(),
             onChanged: (v) {
-              if (v != null) setState(() => _selectedCategory = v);
+              if (v != null) {
+                setState(() {
+                  _selectedCategory = v;
+                  _selectedQuestion = null; // reset — questions depend on category
+                });
+              }
             },
           ),
           const SizedBox(height: 20),
           _label(widget.isLost
               ? 'Where did you last see it?'
-              : 'Specific Location Found *'),
+              : 'Location Found *'),
           const SizedBox(height: 8),
-          TextFormField(
-            controller: _locationCtrl,
-            textInputAction: TextInputAction.next,
+          // Level 1 — building / area
+          DropdownButtonFormField<String>(
+            value: _selectedArea,
+            isExpanded: true,
             decoration: _inputDeco(
-                hint: widget.isLost
-                    ? 'e.g. Canteen, around 2pm'
-                    : 'e.g. Library 2nd floor, near the printer',
-                icon: Icons.location_on_outlined),
+                hint: 'Select building / area',
+                icon: Icons.apartment_rounded),
+            items: _areas
+                .map((a) => DropdownMenuItem(value: a, child: Text(a)))
+                .toList(),
+            onChanged: (v) => setState(() {
+              _selectedArea = v;
+              _selectedSpot = null; // reset — spots depend on the area
+            }),
             validator: (v) {
-              // Location is mandatory only when reporting a found item.
               if (widget.isLost) return null;
-              return (v == null || v.trim().isEmpty)
-                  ? 'Location is required.'
-                  : null;
+              return v == null ? 'Please select a building / area.' : null;
             },
           ),
+          // Level 2 — specific spot (appears after an area is chosen)
+          if (_selectedArea != null) ...[
+            const SizedBox(height: 12),
+            DropdownButtonFormField<String>(
+              value: _selectedSpot,
+              isExpanded: true,
+              decoration: _inputDeco(
+                  hint: 'Select specific spot',
+                  icon: Icons.place_outlined),
+              items: _currentSpots
+                  .map((s) => DropdownMenuItem(
+                        value: s,
+                        child: Text(s, overflow: TextOverflow.ellipsis),
+                      ))
+                  .toList(),
+              onChanged: (v) => setState(() => _selectedSpot = v),
+              validator: (v) {
+                if (widget.isLost) return null;
+                return v == null ? 'Please select a specific spot.' : null;
+              },
+            ),
+          ],
+          // Free-text only when "Other (specify)" is chosen
+          if (_selectedSpot == _otherSpot) ...[
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: _locationCtrl,
+              textInputAction: TextInputAction.next,
+              decoration: _inputDeco(
+                  hint: 'e.g. near the printer, Level 2',
+                  icon: Icons.edit_location_alt_outlined),
+              validator: (v) {
+                if (_selectedSpot == _otherSpot &&
+                    (v == null || v.trim().isEmpty)) {
+                  return 'Please describe the exact spot.';
+                }
+                return null;
+              },
+            ),
+          ],
           const SizedBox(height: 20),
           if (!widget.isLost) ...[
             _label('Date Found *'),
@@ -666,21 +822,20 @@ class _ReportItemViewState extends State<ReportItemView> {
             _dateField(),
             const SizedBox(height: 20),
           ],
-          _label(widget.isLost ? 'Notes / Description' : 'Description *'),
+          _label('Description *'),
           const SizedBox(height: 8),
           TextFormField(
             controller: _descCtrl,
             maxLines: 3,
             textInputAction: TextInputAction.next,
             decoration: _inputDeco(
-                hint: 'Any distinguishing features, colour, brand…',
+                hint: widget.isLost
+                    ? 'Describe your item — colour, brand, marks…'
+                    : 'Any distinguishing features, colour, brand…',
                 icon: Icons.notes_rounded),
-            validator: (v) {
-              if (widget.isLost) return null;
-              return (v == null || v.trim().isEmpty)
-                  ? 'Description is required.'
-                  : null;
-            },
+            validator: (v) => (v == null || v.trim().isEmpty)
+                ? 'Description is required.'
+                : null,
           ),
           const SizedBox(height: 20),
           _label('Tags (comma separated)'),
@@ -720,21 +875,47 @@ class _ReportItemViewState extends State<ReportItemView> {
               ),
             ),
             const SizedBox(height: 16),
-            _label('Ownership Question'),
+            _label('Ownership Question  ($_selectedCategory)'),
             const SizedBox(height: 8),
-            TextFormField(
-              controller: _questionCtrl,
-              textInputAction: TextInputAction.next,
+            DropdownButtonFormField<String>(
+              value: _selectedQuestion,
+              isExpanded: true,
               decoration: _inputDeco(
-                  hint: 'e.g. What is the phone case colour?',
+                  hint: 'Choose a question for this category',
                   icon: Icons.help_outline_rounded),
-              validator: (v) {
-                if (v == null || v.trim().isEmpty) {
-                  return 'A security question is required for found items.';
-                }
-                return null;
-              },
+              items: [
+                for (final q in _currentQuestions)
+                  DropdownMenuItem(
+                    value: q,
+                    child: Text(q, overflow: TextOverflow.ellipsis),
+                  ),
+                const DropdownMenuItem(
+                  value: _customQuestion,
+                  child: Text('✏️  Write my own question'),
+                ),
+              ],
+              onChanged: (v) => setState(() => _selectedQuestion = v),
+              validator: (v) =>
+                  v == null ? 'Please choose a security question.' : null,
             ),
+            // Free-text field only when "Write my own question" is chosen.
+            if (_selectedQuestion == _customQuestion) ...[
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _questionCtrl,
+                textInputAction: TextInputAction.next,
+                decoration: _inputDeco(
+                    hint: 'Type your own question',
+                    icon: Icons.edit_outlined),
+                validator: (v) {
+                  if (_selectedQuestion == _customQuestion &&
+                      (v == null || v.trim().isEmpty)) {
+                    return 'Please write your question.';
+                  }
+                  return null;
+                },
+              ),
+            ],
             const SizedBox(height: 16),
             _label('Correct Answer'),
             const SizedBox(height: 8),

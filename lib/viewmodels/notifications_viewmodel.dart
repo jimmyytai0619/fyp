@@ -76,4 +76,32 @@ class NotificationsViewModel extends ChangeNotifier {
       debugPrint('[NotificationsViewModel] markAsRead error: $e');
     }
   }
+
+  Future<void> markAllRead() async {
+    if (unreadCount == 0) return;
+    _notifications =
+        _notifications.map((n) => n.copyWith(isRead: true)).toList();
+    notifyListeners();
+    try {
+      await ApiService().markAllNotificationsRead();
+    } catch (e) {
+      debugPrint('[NotificationsViewModel] markAllRead error: $e');
+      await fetchNotifications(); // resync on failure
+    }
+  }
+
+  Future<void> clearAll() async {
+    if (_notifications.isEmpty) return;
+    final backup = _notifications;
+    _notifications = [];
+    notifyListeners();
+    try {
+      await ApiService().clearNotifications();
+    } catch (e) {
+      _notifications = backup; // restore on failure
+      _errorMessage = 'Could not clear notifications.';
+      notifyListeners();
+      debugPrint('[NotificationsViewModel] clearAll error: $e');
+    }
+  }
 }

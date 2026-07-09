@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../models/item_report.dart';
 import '../../viewmodels/manage_records_viewmodel.dart';
 import '../report_item/report_item_view.dart';
+import 'record_detail_view.dart';
 
 class ManageRecordsView extends StatefulWidget {
   const ManageRecordsView({super.key});
@@ -68,7 +69,11 @@ class _ManageRecordsViewState extends State<ManageRecordsView> {
             ],
           ),
         ),
-        body: Consumer<ManageRecordsViewModel>(
+        body: Column(
+          children: [
+            _RecordSearchBar(primaryColor: _primaryBlue),
+            Expanded(
+              child: Consumer<ManageRecordsViewModel>(
           builder: (context, vm, _) {
             if (vm.isLoading) {
               return const Center(
@@ -104,15 +109,16 @@ class _ManageRecordsViewState extends State<ManageRecordsView> {
             return TabBarView(
               children: [
                 _ItemList(
-                  items: vm.myLostItems,
+                  items: vm.filteredLostItems,
                   isLost: true,
                   emptyIcon: Icons.search_off_rounded,
                   emptyMessage: "You haven't reported any lost items yet.",
                   accentColor: _primaryBlue,
                 ),
                 _ItemList(
-                  items: vm.myFoundItems,
+                  items: vm.filteredFoundItems,
                   isLost: false,
+                  claimStatuses: vm.foundClaimStatuses,
                   emptyIcon: Icons.inventory_2_outlined,
                   emptyMessage: "You haven't reported any found items yet.",
                   accentColor: const Color(0xFF00897B),
@@ -120,6 +126,74 @@ class _ManageRecordsViewState extends State<ManageRecordsView> {
               ],
             );
           },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Search bar ────────────────────────────────────────────────────────────────
+
+class _RecordSearchBar extends StatefulWidget {
+  final Color primaryColor;
+  const _RecordSearchBar({required this.primaryColor});
+
+  @override
+  State<_RecordSearchBar> createState() => _RecordSearchBarState();
+}
+
+class _RecordSearchBarState extends State<_RecordSearchBar> {
+  final _controller = TextEditingController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: Colors.white,
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+      child: TextField(
+        controller: _controller,
+        onChanged: (v) =>
+            context.read<ManageRecordsViewModel>().setSearchQuery(v),
+        decoration: InputDecoration(
+          hintText: 'Search my records (category, location…)',
+          hintStyle: const TextStyle(color: Color(0xFFBDBDBD), fontSize: 14),
+          prefixIcon:
+              Icon(Icons.search_rounded, color: widget.primaryColor, size: 22),
+          suffixIcon: _controller.text.isEmpty
+              ? null
+              : IconButton(
+                  icon: const Icon(Icons.close_rounded, size: 20),
+                  onPressed: () {
+                    _controller.clear();
+                    context.read<ManageRecordsViewModel>().setSearchQuery('');
+                    setState(() {});
+                  },
+                ),
+          filled: true,
+          fillColor: const Color(0xFFF8FAFF),
+          contentPadding:
+              const EdgeInsets.symmetric(vertical: 0, horizontal: 16),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: Color(0xFFDDE3F0)),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: Color(0xFFDDE3F0)),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide(color: widget.primaryColor, width: 1.6),
+          ),
         ),
       ),
     );
@@ -134,6 +208,7 @@ class _ItemList extends StatelessWidget {
   final IconData emptyIcon;
   final String emptyMessage;
   final Color accentColor;
+  final Map<String, String>? claimStatuses;
 
   const _ItemList({
     required this.items,
@@ -141,7 +216,24 @@ class _ItemList extends StatelessWidget {
     required this.emptyIcon,
     required this.emptyMessage,
     required this.accentColor,
+    this.claimStatuses,
   });
+
+  void _openDetail(BuildContext context, ItemReport item) {
+    final vm = context.read<ManageRecordsViewModel>();
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => ChangeNotifierProvider.value(
+          value: vm,
+          child: RecordDetailView(
+            item: item,
+            isLost: isLost,
+            claimStatus: claimStatuses?[item.id],
+          ),
+        ),
+      ),
+    );
+  }
 
   Future<void> _refresh(BuildContext context) =>
       context.read<ManageRecordsViewModel>().fetchMyRecords();
@@ -240,9 +332,49 @@ class _ItemList extends StatelessWidget {
               child: const Icon(Icons.delete_outline_rounded,
                   color: Colors.white, size: 26),
             ),
-            child: _RecordCard(item: item, accentColor: accentColor),
+            child: GestureDetector(
+              onTap: () => _openDetail(context, item),
+              child: _RecordCard(
+                item: item,
+                accentColor: accentColor,
+                claimStatus: claimStatuses?[item.id],
+              ),
+            ),
           );
         },
+      ),
+    );
+  }
+}
+
+// ── Claim status badge (found items with claim activity) ──────────────────────
+
+class _ClaimBadge extends StatelessWidget {
+  final String status;
+  const _ClaimBadge({required this.status});
+
+  @override
+  Widget build(BuildContext context) {
+    final (bg, fg) = switch (status) {
+      'Verified' => (const Color(0xFFE3F2FD), const Color(0xFF1565C0)),
+      'Returned' => (const Color(0xFFE8F5E9), const Color(0xFF2E7D32)),
+      'Rejected' => (const Color(0xFFFFEBEE), const Color(0xFFC62828)),
+      _ => (const Color(0xFFFFF8E1), const Color(0xFFE65100)),
+    };
+    final label = status == 'Pending' ? 'Claim pending' : status;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+      decoration:
+          BoxDecoration(color: bg, borderRadius: BorderRadius.circular(20)),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.verified_user_rounded, size: 12, color: fg),
+          const SizedBox(width: 4),
+          Text(label,
+              style: TextStyle(
+                  fontSize: 11.5, fontWeight: FontWeight.w700, color: fg)),
+        ],
       ),
     );
   }
@@ -253,8 +385,10 @@ class _ItemList extends StatelessWidget {
 class _RecordCard extends StatelessWidget {
   final ItemReport item;
   final Color accentColor;
+  final String? claimStatus;
 
-  const _RecordCard({required this.item, required this.accentColor});
+  const _RecordCard(
+      {required this.item, required this.accentColor, this.claimStatus});
 
   @override
   Widget build(BuildContext context) {
@@ -325,7 +459,10 @@ class _RecordCard extends StatelessWidget {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      _StatusBadge(status: item.status),
+                      if (claimStatus != null)
+                        _ClaimBadge(status: claimStatus!)
+                      else
+                        _StatusBadge(status: item.status),
                       Text(
                         _formatDate(item.createdAt),
                         style: TextStyle(

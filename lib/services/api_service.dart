@@ -237,6 +237,47 @@ class ApiService {
     await request.send().timeout(const Duration(seconds: 60));
   }
 
+  /// Updates one of the user's own reports (category, location, description).
+  Future<void> updateReport({
+    required String id,
+    required bool isLost,
+    required String category,
+    required String location,
+    required String description,
+  }) async {
+    final table = isLost ? 'lost_items' : 'found_items';
+    await _client.from(table).update({
+      'category': category,
+      'location_found': location,
+      'description': description,
+    }).eq('id', id);
+  }
+
+  /// Returns a map of found_item_id → the most-advanced claim status, for the
+  /// current user's found items (so Manage My Records can show claim activity).
+  Future<Map<String, String>> getMyFoundClaimStatuses() async {
+    final uid = _client.auth.currentUser?.id;
+    if (uid == null) return {};
+    final rows = await _client
+        .from('claims')
+        .select('found_item_id, status')
+        .eq('finder_id', uid)
+        .neq('status', 'Quiz');
+
+    const rank = {'Returned': 4, 'Verified': 3, 'Pending': 2, 'Rejected': 1};
+    final map = <String, String>{};
+    for (final r in (rows as List)) {
+      final fid = r['found_item_id'] as String?;
+      final st = r['status'] as String?;
+      if (fid == null || st == null) continue;
+      final existing = map[fid];
+      if (existing == null || (rank[st] ?? 0) > (rank[existing] ?? 0)) {
+        map[fid] = st;
+      }
+    }
+    return map;
+  }
+
   /// Deletes one of the current user's own reports. RLS ensures a user can
   /// only delete rows they own.
   Future<void> deleteReport({
@@ -298,6 +339,35 @@ class ApiService {
         .from('notifications')
         .update({'is_read': true})
         .eq('id', notificationId);
+  }
+
+  /// Marks every one of the current user's notifications as read.
+  Future<void> markAllNotificationsRead() async {
+    final userId = _client.auth.currentUser?.id;
+    if (userId == null) return;
+    await _client
+        .from('notifications')
+        .update({'is_read': true})
+        .eq('user_id', userId)
+        .eq('is_read', false);
+  }
+
+  /// Deletes all of the current user's notifications.
+  Future<void> clearNotifications() async {
+    final userId = _client.auth.currentUser?.id;
+    if (userId == null) return;
+    await _client.from('notifications').delete().eq('user_id', userId);
+  }
+
+  /// Fetches a single found item by id (used to open a match notification).
+  Future<ItemReport?> getFoundItemById(String itemId) async {
+    final row = await _client
+        .from('found_items')
+        .select()
+        .eq('id', itemId)
+        .maybeSingle();
+    if (row == null) return null;
+    return ItemReport.fromMap(Map<String, dynamic>.from(row));
   }
 
   Future<List<ItemReport>> browseFoundItems({String? category}) async {

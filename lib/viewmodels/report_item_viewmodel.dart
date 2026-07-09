@@ -105,6 +105,17 @@ class ReportItemViewModel extends ChangeNotifier {
       }
     }
 
+    // Lost items require at least a category and a description so the report is
+    // useful for matching.
+    if (isLost) {
+      if (category.trim().isEmpty || category == 'Unrecognized') {
+        throw Exception('Please choose an item category.');
+      }
+      if (description.trim().isEmpty) {
+        throw Exception('Please enter a description of your lost item.');
+      }
+    }
+
     _setLoading(true);
     try {
       final tagList = tags

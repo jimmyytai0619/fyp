@@ -2,7 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../models/app_notification.dart';
+import '../../models/item_report.dart';
+import '../../models/match_result.dart';
+import '../../services/api_service.dart';
 import '../../viewmodels/notifications_viewmodel.dart';
+import '../search/item_detail_view.dart';
 
 class NotificationsView extends StatefulWidget {
   const NotificationsView({super.key});
@@ -24,6 +28,82 @@ class _NotificationsViewState extends State<NotificationsView> {
     });
   }
 
+  /// Marks the alert read and, if it points to a found item, opens its detail
+  /// page so the user can claim it.
+  Future<void> _openNotification(
+      BuildContext context, NotificationsViewModel vm, AppNotification n) async {
+    if (!n.isRead) vm.markAsRead(n.id);
+    if (n.itemId == null) return;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(child: CircularProgressIndicator()),
+    );
+
+    ItemReport? item;
+    try {
+      item = await ApiService().getFoundItemById(n.itemId!);
+    } catch (_) {
+      item = null;
+    }
+
+    if (!context.mounted) return;
+    Navigator.of(context).pop(); // close the loader
+
+    if (item == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('That item is no longer available.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    final match = MatchResult(
+      id: item.id,
+      imageUrl: item.imageUrl,
+      category: item.category,
+      locationFound: item.locationFound,
+      description: item.description,
+      tags: const [],
+      confidenceScore: 0,
+      createdAt: item.createdAt,
+    );
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => ItemDetailView(item: match)),
+    );
+  }
+
+  Future<void> _confirmClear(
+      BuildContext context, NotificationsViewModel vm) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Clear all notifications?'),
+        content:
+            const Text('This removes all your alerts and cannot be undone.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel',
+                style: TextStyle(color: Color(0xFF757575))),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Clear all',
+                style: TextStyle(
+                    color: Color(0xFFD32F2F), fontWeight: FontWeight.w700)),
+          ),
+        ],
+      ),
+    );
+    if (ok == true) vm.clearAll();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -40,27 +120,35 @@ class _NotificationsViewState extends State<NotificationsView> {
         actions: [
           Consumer<NotificationsViewModel>(
             builder: (ctx, vm, child) {
-              if (vm.unreadCount == 0) return const SizedBox.shrink();
-              return Padding(
-                padding: const EdgeInsets.only(right: 16),
-                child: Center(
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 10, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.25),
-                      borderRadius: BorderRadius.circular(20),
+              if (vm.notifications.isEmpty) return const SizedBox.shrink();
+              return PopupMenuButton<String>(
+                icon: const Icon(Icons.more_vert_rounded),
+                onSelected: (value) {
+                  if (value == 'read') {
+                    vm.markAllRead();
+                  } else if (value == 'clear') {
+                    _confirmClear(ctx, vm);
+                  }
+                },
+                itemBuilder: (_) => [
+                  if (vm.unreadCount > 0)
+                    const PopupMenuItem(
+                      value: 'read',
+                      child: Row(children: [
+                        Icon(Icons.done_all_rounded, size: 20),
+                        SizedBox(width: 10),
+                        Text('Mark all as read'),
+                      ]),
                     ),
-                    child: Text(
-                      '${vm.unreadCount} unread',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
+                  const PopupMenuItem(
+                    value: 'clear',
+                    child: Row(children: [
+                      Icon(Icons.delete_sweep_outlined, size: 20),
+                      SizedBox(width: 10),
+                      Text('Clear all'),
+                    ]),
                   ),
-                ),
+                ],
               );
             },
           ),
@@ -110,7 +198,8 @@ class _NotificationsViewState extends State<NotificationsView> {
             itemBuilder: (_, i) => _NotificationCard(
               notification: vm.notifications[i],
               unreadTint: _unreadTint,
-              onTap: () => vm.markAsRead(vm.notifications[i].id),
+              onTap: () =>
+                  _openNotification(context, vm, vm.notifications[i]),
             ),
           );
         },
@@ -137,7 +226,7 @@ class _NotificationCard extends StatelessWidget {
     final isUnread = !notification.isRead;
 
     return GestureDetector(
-      onTap: isUnread ? onTap : null,
+      onTap: onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 300),
         decoration: BoxDecoration(

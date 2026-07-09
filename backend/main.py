@@ -267,6 +267,7 @@ async def ingest_found(item_id: str = Form(...)):
                         f"report was just reported found at "
                         f"{found.get('location_found', 'campus')}."
                     ),
+                    "item_id": found.get("id"),
                     "is_read": False,
                 }
             ).execute()
@@ -336,6 +337,7 @@ async def ingest_lost(item_id: str = Form(...)):
                     f"report may already be waiting — reported found at "
                     f"{best_found.get('location_found', 'campus')}."
                 ),
+                "item_id": best_found.get("id"),
                 "is_read": False,
             }
         ).execute()
