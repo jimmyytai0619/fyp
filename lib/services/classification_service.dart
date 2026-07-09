@@ -154,6 +154,7 @@ class ClassificationService {
 
     final tier = _tierFor(top.confidence);
     final material = _inferMaterial(labels);
+    final subFeatures = _inferSubFeatures(labels);
 
     // Build distinct category suggestions (used by the medium tier).
     final seen = <String>{};
@@ -174,6 +175,7 @@ class ClassificationService {
       colorName: colorName,
       material: material,
       noun: _itemNoun(top.label),
+      subFeatures: subFeatures,
     );
 
     return ClassificationResult(
@@ -283,7 +285,8 @@ class ClassificationService {
   String? _inferMaterial(List<ImageLabel> labels) {
     const materials = [
       'leather', 'metal', 'plastic', 'fabric', 'denim', 'wood', 'cotton',
-      'rubber', 'glass', 'paper', 'wool', 'silk',
+      'rubber', 'glass', 'paper', 'wool', 'silk', 'polyester', 'nylon',
+      'canvas', 'ceramic',
     ];
     for (final l in labels) {
       final t = l.label.toLowerCase();
@@ -294,18 +297,51 @@ class ClassificationService {
     return null;
   }
 
-  /// FR 2.3 — "Black leather wallet" style description from visual attributes.
+  /// Detects secondary attributes like zippers, straps, or patterns.
+  List<String> _inferSubFeatures(List<ImageLabel> labels) {
+    const subFeatures = {
+      'zipper': ['zipper', 'zip'],
+      'strap': ['strap', 'handle'],
+      'pattern': ['pattern', 'print', 'floral', 'stripe', 'checkered'],
+      'screen': ['screen', 'display'],
+      'case': ['case', 'cover'],
+      'logo': ['logo', 'branding'],
+    };
+    final detected = <String>{};
+    for (final l in labels) {
+      final t = l.label.toLowerCase();
+      for (final entry in subFeatures.entries) {
+        if (entry.value.any((v) => t.contains(v))) {
+          detected.add(entry.key);
+        }
+      }
+    }
+    return detected.toList();
+  }
+
+  /// FR 2.3 — "Black leather wallet with zipper" style description.
   String _buildDescription({
     required String colorName,
     String? material,
     required String noun,
+    List<String>? subFeatures,
   }) {
     final parts = <String>[];
     if (colorName != 'Unknown') parts.add(colorName);
     if (material != null) parts.add(material);
     parts.add(noun);
-    final s = parts.join(' ');
-    return s.isEmpty ? '' : '${s[0].toUpperCase()}${s.substring(1)}';
+
+    var s = parts.join(' ');
+    if (s.isNotEmpty) {
+      s = '${s[0].toUpperCase()}${s.substring(1)}';
+    }
+
+    if (subFeatures != null && subFeatures.isNotEmpty) {
+      final featureList = subFeatures.join(', ');
+      s = s.isEmpty ? 'With $featureList' : '$s with $featureList';
+    }
+
+    return s;
   }
 
   Future<(String, String)> _dominantColor(File file) async {
