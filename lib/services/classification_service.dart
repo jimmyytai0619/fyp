@@ -95,14 +95,19 @@ class ClassificationService {
     TextRecognizer? textRecognizer,
   })  : _labeler = labeler ??
             ImageLabeler(
-              options: ImageLabelerOptions(confidenceThreshold: minConfidence),
+              options: ImageLabelerOptions(confidenceThreshold: labelThreshold),
             ),
         _textRecognizer = textRecognizer ?? TextRecognizer();
 
   final ImageLabeler _labeler;
   final TextRecognizer _textRecognizer;
 
-  /// ML Kit won't emit labels below this.
+  /// Low bar so more candidate labels are returned for category mapping — the
+  /// final tier is still gated by the high/medium thresholds below, so this
+  /// improves the category hit-rate without auto-filling low-confidence guesses.
+  static const double labelThreshold = 0.30;
+
+  /// (kept for compatibility) medium-tier floor.
   static const double minConfidence = 0.50;
 
   /// >= this -> auto-fill (high tier).
@@ -233,10 +238,13 @@ class ClassificationService {
     final label = mlLabel.toLowerCase();
 
     const electronics = [
-      'phone', 'mobile', 'laptop', 'computer', 'tablet', 'headphone',
-      'earphone', 'charger', 'camera', 'watch', 'mouse', 'keyboard',
-      'cable', 'television', 'speaker', 'power bank', 'kindle', 'gadget',
-      'microphone', 'monitor', 'usb', 'pendrive', 'electronic',
+      'phone', 'mobile', 'smartphone', 'iphone', 'android', 'laptop',
+      'computer', 'tablet', 'ipad', 'headphone', 'earphone', 'earbud',
+      'airpod', 'charger', 'adapter', 'camera', 'watch', 'smartwatch',
+      'mouse', 'keyboard', 'cable', 'cord', 'television', 'speaker',
+      'power bank', 'powerbank', 'kindle', 'gadget', 'microphone', 'monitor',
+      'usb', 'pendrive', 'flash drive', 'electronic', 'remote', 'controller',
+      'console', 'router', 'drone',
     ];
 
     const idsAndCards = [

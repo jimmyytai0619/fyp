@@ -49,6 +49,55 @@ class ItemDetailView extends StatelessWidget {
     );
   }
 
+  /// Lets the finder who posted the item delete it.
+  Future<void> _confirmDelete(BuildContext context) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Delete this item?'),
+        content: const Text(
+            'This permanently removes the item you posted. It will disappear '
+            'from Browse and search. This cannot be undone.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel',
+                style: TextStyle(color: Color(0xFF757575))),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Delete',
+                style: TextStyle(
+                    color: Color(0xFFD32F2F), fontWeight: FontWeight.w700)),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+
+    try {
+      await ApiService().deleteReport(id: item.id, isLost: false);
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Item deleted.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      Navigator.of(context).pop();
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.toString().replaceFirst('Exception: ', '')),
+          backgroundColor: const Color(0xFFB00020),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final score = item.confidenceScore;
@@ -148,18 +197,41 @@ class ItemDetailView extends StatelessWidget {
                   SizedBox(
                     width: double.infinity,
                     height: 52,
-                    child: ElevatedButton.icon(
-                      icon: const Icon(Icons.shield_outlined),
-                      label: const Text('Claim This Item',
-                          style: TextStyle(
-                              fontSize: 15, fontWeight: FontWeight.w700)),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: _primaryBlue,
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14)),
-                      ),
-                      onPressed: () => _startClaim(context),
+                    child: FutureBuilder<bool>(
+                      future: ApiService().isMyFoundItem(item.id),
+                      builder: (context, snap) {
+                        final isOwner = snap.data ?? false;
+                        if (isOwner) {
+                          // The finder who posted it can delete it.
+                          return ElevatedButton.icon(
+                            icon: const Icon(Icons.delete_outline_rounded),
+                            label: const Text('Delete This Item',
+                                style: TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w700)),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFFD32F2F),
+                              foregroundColor: Colors.white,
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(14)),
+                            ),
+                            onPressed: () => _confirmDelete(context),
+                          );
+                        }
+                        return ElevatedButton.icon(
+                          icon: const Icon(Icons.shield_outlined),
+                          label: const Text('Claim This Item',
+                              style: TextStyle(
+                                  fontSize: 15, fontWeight: FontWeight.w700)),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: _primaryBlue,
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(14)),
+                          ),
+                          onPressed: () => _startClaim(context),
+                        );
+                      },
                     ),
                   ),
                 ],

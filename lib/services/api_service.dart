@@ -72,6 +72,18 @@ class ApiService {
 
   // ── Secure Claim & Handover (Module 5) ──────────────────────────────────────
 
+  /// True when the currently logged-in user is the finder who posted this item.
+  Future<bool> isMyFoundItem(String itemId) async {
+    final uid = _client.auth.currentUser?.id;
+    if (uid == null) return false;
+    final row = await _client
+        .from('found_items')
+        .select('user_id')
+        .eq('id', itemId)
+        .maybeSingle();
+    return row != null && row['user_id'] == uid;
+  }
+
   /// Reads the public ownership question for a found item (null if none set).
   Future<String?> getSecurityQuestion(String itemId) async {
     final row = await _client

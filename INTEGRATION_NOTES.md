@@ -1,4 +1,4 @@
-# Integration Notes — On-device AI Classification (Modules 2 & 3)
+em# Integration Notes — On-device AI Classification (Modules 2 & 3)
 
 This documents the on-device Google ML Kit classification merged into the
 existing **SmartMatch** project. It is **additive** and conforms to the project's

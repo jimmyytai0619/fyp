@@ -69,14 +69,34 @@ app.add_middleware(
 
 
 # ── Core AI helpers ──────────────────────────────────────────────────────────
+def _preprocess_image(image_bytes: bytes) -> Image.Image:
+    """Center-square-crop then resize to 224x224.
+
+    Cropping to a centred square (instead of squishing the whole photo) keeps
+    the aspect ratio and focuses the network on the object in the middle,
+    reducing the influence of background clutter — which makes the resulting
+    feature vectors far more discriminative for matching.
+    """
+    img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+    w, h = img.size
+    side = min(w, h)
+    left = (w - side) // 2
+    top = (h - side) // 2
+    img = img.crop((left, top, left + side, top + side))
+    return img.resize((224, 224))
+
+
 def extract_vector(image_bytes: bytes) -> np.ndarray:
-    """Algorithm 1: normalize image to [-1,1] and run MobileNetV2 forward pass."""
-    img = Image.open(io.BytesIO(image_bytes)).convert("RGB").resize((224, 224))
-    arr = np.array(img, dtype=np.float32)
-    arr = preprocess_input(arr)          # scales pixels to [-1, 1]
-    arr = np.expand_dims(arr, axis=0)     # (1, 224, 224, 3)
-    vector = model.predict(arr, verbose=0)[0]  # (1280,)
-    return vector.astype(np.float32)
+    """Algorithm 1: normalize image to [-1,1] and run MobileNetV2 forward pass.
+
+    Uses test-time augmentation (original + horizontal flip, averaged) so the
+    embedding is robust to left/right orientation of the item.
+    """
+    img = _preprocess_image(image_bytes)
+    arr = preprocess_input(np.array(img, dtype=np.float32))  # → [-1, 1]
+    batch = np.stack([arr, np.fliplr(arr)])                  # (2, 224, 224, 3)
+    vectors = model.predict(batch, verbose=0)                # (2, 1280)
+    return vectors.mean(axis=0).astype(np.float32)
 
 
 def cosine_similarity(a: np.ndarray, b: np.ndarray) -> float:

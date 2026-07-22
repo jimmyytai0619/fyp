@@ -29,6 +29,9 @@ class _DashboardViewState extends State<DashboardView> {
   // Shared so the realtime alert and the Messages tab use the same list.
   final NotificationsViewModel _notifVM = NotificationsViewModel();
 
+  // Shared so we can refresh contribution stats when the Profile tab is opened.
+  final ProfileViewModel _profileVM = ProfileViewModel();
+
   static const _primaryBlue = Color(0xFF1565C0);
   static const _bgColor = Color(0xFFF0F4FF);
 
@@ -98,6 +101,7 @@ class _DashboardViewState extends State<DashboardView> {
       Supabase.instance.client.removeChannel(_notifChannel!);
     }
     _notifVM.dispose();
+    _profileVM.dispose();
     super.dispose();
   }
 
@@ -115,9 +119,9 @@ class _DashboardViewState extends State<DashboardView> {
             value: _notifVM,
             child: const NotificationsView(),
           ),
-          // ProfileViewModel is scoped to the Profile tab only.
-          ChangeNotifierProvider(
-            create: (_) => ProfileViewModel(),
+          // Shared ProfileViewModel so contribution stats refresh on tab open.
+          ChangeNotifierProvider.value(
+            value: _profileVM,
             child: const ProfileView(),
           ),
         ],
@@ -127,6 +131,7 @@ class _DashboardViewState extends State<DashboardView> {
         onDestinationSelected: (i) {
           setState(() => _currentIndex = i);
           if (i == 1) _notifVM.fetchNotifications(); // refresh inbox on open
+          if (i == 2) _profileVM.loadUserData(); // refresh stats on open
         },
         backgroundColor: Colors.white,
         indicatorColor: _primaryBlue.withValues(alpha: 0.12),
