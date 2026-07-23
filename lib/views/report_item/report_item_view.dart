@@ -87,32 +87,86 @@ class _ReportItemViewState extends State<ReportItemView> {
   String? _selectedSpot;
 
   static const List<String> _areas = [
-    'Block A',
-    'Block B',
-    'Block C',
-    'Block D',
-    'Library',
-    'Canteen / Cafeteria',
+    // ── Major Buildings ──
+    'Arena',
+    'Tun Tan Siew Sin Building (Administration)',
+    'Tan Sri Khaw Kai Boh Building',
+    'Cyber Centre',
+    'University College Hall (UC Hall)',
+    'Main Library',
+    'Postgraduate Library',
     'Sports Complex',
-    'Admin Building',
+    'CPE Centre',
+    'VTAR Institute',
+    'Student Hostel',
+    'CECE Kindergarten',
+    // ── Academic Blocks ──
+    'Block A', 'Block B', 'Block C', 'Block D', 'Block E', 'Block G',
+    'Block H', 'Block K', 'Block L', 'Block M', 'Block N', 'Block P',
+    'Block PA', 'Block Q', 'Block R', 'Block S', 'Block SA', 'Block SB',
+    'Block SC', 'Block SD', 'Block SE', 'Block SF', 'Block V', 'Block W',
+    'Block X', 'Block Y', 'Block AA', 'Block AB', 'Block CC',
+    // ── Lecture Theatres (DK) ──
+    'DK A', 'DK B', 'DK C', 'DK D', 'DK E',
+    'DK 1', 'DK 2', 'DK 3', 'DK 4', 'DK 5', 'DK 6', 'DK 7', 'DK 8',
+    'DK W', 'DK X', 'DK Y', 'DK Z',
+    'DK ABA', 'DK ABB', 'DK ABC', 'DK ABD', 'DK ABE', 'DK ABF',
+    // ── Food & Student Facilities ──
+    'The Red Bricks Cafeteria',
+    'Yum Yum Park / Cafeteria',
+    'The Roofs',
+    'Training Restaurant',
+    'Student Centre (within Arena)',
+    'Clubhouse',
+    // ── Sports & Outdoor Facilities ──
+    'Football Field',
+    'Swimming Pool',
+    'Basketball Courts',
+    'Volleyball Court',
+    'Futsal Court',
+    'Tennis Courts',
+    'Multi-purpose Courts',
+    // ── Other Facilities ──
+    'Workshops',
+    'Fern House',
+    'East Campus',
     'Car Park',
+    'Guard House / Campus Gate',
     'Other',
   ];
 
+  // Generic spots used for any building without a custom list below (covers the
+  // academic blocks and DK lecture theatres, which are the common cases).
+  static const List<String> _defaultSpots = [
+    'Entrance / Lobby',
+    'Classroom / Lab / Hall',
+    'Corridor / Walkway',
+    'Toilet',
+    'Staircase / Lift',
+    _otherSpot,
+  ];
+
   static const Map<String, List<String>> _spotsByArea = {
-    'Block A': ['Lecture Hall', 'Tutorial Room', 'Lab', 'Corridor', 'Toilet', _otherSpot],
-    'Block B': ['Lab B-01', 'Lab B-02', 'Lecture Hall B', 'Tutorial Room', 'Corridor', 'Toilet', _otherSpot],
-    'Block C': ['Lecture Hall', 'Tutorial Room', 'Lab', 'Corridor', 'Toilet', _otherSpot],
-    'Block D': ['Lecture Hall', 'Tutorial Room', 'Lab', 'Corridor', 'Toilet', _otherSpot],
-    'Library': ['Ground Floor', 'Level 1', 'Level 2', 'Study Area', 'Help Desk', 'Discussion Room', _otherSpot],
-    'Canteen / Cafeteria': ['Seating Area', 'Food Counter', 'Entrance', _otherSpot],
+    'Main Library': ['Ground Floor', 'Level 1', 'Level 2', 'Study Area', 'Help Desk', 'Discussion Room', _otherSpot],
+    'Postgraduate Library': ['Reading Area', 'Study Carrel', 'Help Desk', 'Discussion Room', _otherSpot],
+    'The Red Bricks Cafeteria': ['Seating Area', 'Food Counter', 'Entrance', _otherSpot],
+    'Yum Yum Park / Cafeteria': ['Seating Area', 'Food Counter', 'Entrance', _otherSpot],
+    'The Roofs': ['Seating Area', 'Food Counter', 'Entrance', _otherSpot],
+    'Training Restaurant': ['Dining Area', 'Counter', 'Entrance', _otherSpot],
+    'Arena': ['Concourse', 'Hall', 'Student Centre', 'Entrance', 'Toilet', _otherSpot],
     'Sports Complex': ['Court', 'Gym', 'Field', 'Changing Room', _otherSpot],
-    'Admin Building': ['Counter', 'Waiting Area', 'Office', _otherSpot],
-    'Car Park': ['Block A Car Park', 'Block B Car Park', 'Motorcycle Bay', _otherSpot],
+    'Swimming Pool': ['Poolside', 'Changing Room', 'Spectator Area', _otherSpot],
+    'Football Field': ['Field', 'Spectator Stand', 'Entrance', _otherSpot],
+    'Basketball Courts': ['Court', 'Bench / Side', _otherSpot],
+    'Tennis Courts': ['Court', 'Bench / Side', _otherSpot],
+    'Student Hostel': ['Room', 'Common Area', 'Lobby', 'Corridor', _otherSpot],
+    'Car Park': ['Open-Air Car Park', 'Covered Car Park', 'Motorcycle Bay', _otherSpot],
+    'Guard House / Campus Gate': ['Guard House', 'Arena Gate', 'Main Gate', _otherSpot],
     'Other': [_otherSpot],
   };
 
-  List<String> get _currentSpots => _spotsByArea[_selectedArea] ?? const [];
+  List<String> get _currentSpots =>
+      _spotsByArea[_selectedArea] ?? _defaultSpots;
 
   /// Combines the two dropdowns (and the custom text) into one location string.
   String _composedLocation() {
