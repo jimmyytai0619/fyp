@@ -163,51 +163,6 @@ class _DashboardViewState extends State<DashboardView> {
 class _HomeTab extends StatelessWidget {
   const _HomeTab();
 
-  static const _actions = [
-    _ActionCard(
-      icon: Icons.search_rounded,
-      label: 'Find My Lost Item',
-      description: 'Search now with a photo',
-      color: Color(0xFF1565C0),
-      route: 'search',
-    ),
-    _ActionCard(
-      icon: Icons.add_a_photo_rounded,
-      label: 'Report Found Item',
-      description: "You found someone's lost item",
-      color: Color(0xFF00897B),
-      route: 'report',
-    ),
-    _ActionCard(
-      icon: Icons.report_gmailerrorred_rounded,
-      label: 'Report Lost Item',
-      description: 'You lost item',
-      color: Color(0xFFD81B60),
-      route: 'report_lost',
-    ),
-    _ActionCard(
-      icon: Icons.folder_open_rounded,
-      label: 'Manage My Records',
-      description: 'View & delete your reports',
-      color: Color(0xFF6949FF),
-      route: 'manage',
-    ),
-    _ActionCard(
-      icon: Icons.verified_user_rounded,
-      label: 'My Claims',
-      description: 'Claims, approvals & chat',
-      color: Color(0xFF00838F),
-      route: 'claims',
-    ),
-    _ActionCard(
-      icon: Icons.grid_view_rounded,
-      label: 'Browse',
-      description: 'See all found items',
-      color: Color(0xFFE65100),
-      route: 'browse',
-    ),
-  ];
-
   @override
   Widget build(BuildContext context) {
     return SafeArea(
@@ -215,21 +170,76 @@ class _HomeTab extends StatelessWidget {
         slivers: [
           SliverToBoxAdapter(child: _buildHeader(context)),
           SliverPadding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            sliver: SliverGrid(
-              delegate: SliverChildBuilderDelegate(
-                (context, i) => _ActionCardWidget(card: _actions[i]),
-                childCount: _actions.length,
-              ),
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                crossAxisSpacing: 14,
-                mainAxisSpacing: 14,
-                childAspectRatio: 0.92,
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+            sliver: SliverToBoxAdapter(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const _SectionLabel(text: 'Primary Actions'),
+                  const SizedBox(height: 12),
+                  _BigActionCard(
+                    icon: Icons.add_a_photo_rounded,
+                    label: 'Report Found Item',
+                    description: "Help someone find their lost belongings",
+                    color: const Color(0xFF00897B),
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const ReportItemView()),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  _GroupedLostCard(),
+                  const SizedBox(height: 28),
+                  const _SectionLabel(text: 'More Actions'),
+                  const SizedBox(height: 12),
+                  _RectActionCard(
+                    icon: Icons.folder_open_rounded,
+                    label: 'Manage My Records',
+                    description: 'View and manage your reports',
+                    color: const Color(0xFF6949FF),
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => ChangeNotifierProvider(
+                          create: (_) => ManageRecordsViewModel(),
+                          child: const ManageRecordsView(),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  _RectActionCard(
+                    icon: Icons.verified_user_rounded,
+                    label: 'My Claims',
+                    description: 'Track your claims and handovers',
+                    color: const Color(0xFF00838F),
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => ChangeNotifierProvider(
+                          create: (_) => ClaimsViewModel(),
+                          child: const ClaimsView(),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  _RectActionCard(
+                    icon: Icons.grid_view_rounded,
+                    label: 'Browse Items',
+                    description: 'See what has been found on campus',
+                    color: const Color(0xFFE65100),
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => ChangeNotifierProvider(
+                          create: (_) => BrowseViewModel(),
+                          child: const BrowseView(),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 32),
+                ],
               ),
             ),
           ),
-          const SliverToBoxAdapter(child: SizedBox(height: 24)),
         ],
       ),
     );
@@ -290,134 +300,300 @@ class _HomeTab extends StatelessWidget {
               fontSize: 14,
             ),
           ),
-          const SizedBox(height: 4),
         ],
       ),
     );
   }
 }
 
-class _ActionCard {
+class _SectionLabel extends StatelessWidget {
+  final String text;
+  const _SectionLabel({required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      text.toUpperCase(),
+      style: TextStyle(
+        fontSize: 12,
+        fontWeight: FontWeight.w800,
+        color: Colors.blueGrey.shade700,
+        letterSpacing: 1.2,
+      ),
+    );
+  }
+}
+
+// ── Large Card (Found) ────────────────────────────────────────────────────────
+
+class _BigActionCard extends StatelessWidget {
   final IconData icon;
   final String label;
   final String description;
   final Color color;
-  final String? route;
+  final VoidCallback onTap;
 
-  const _ActionCard({
+  const _BigActionCard({
     required this.icon,
     required this.label,
     required this.description,
     required this.color,
-    required this.route,
+    required this.onTap,
   });
-}
-
-class _ActionCardWidget extends StatelessWidget {
-  final _ActionCard card;
-
-  const _ActionCardWidget({required this.card});
-
-  void _onTap(BuildContext context) {
-    if (card.route == 'report') {
-      Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => const ReportItemView()),
-      );
-    } else if (card.route == 'report_lost') {
-      Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => const ReportItemView(isLost: true)),
-      );
-    } else if (card.route == 'search') {
-      Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => const SearchView()),
-      );
-    } else if (card.route == 'manage') {
-      Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => ChangeNotifierProvider(
-            create: (_) => ManageRecordsViewModel(),
-            child: const ManageRecordsView(),
-          ),
-        ),
-      );
-    } else if (card.route == 'browse') {
-      Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => ChangeNotifierProvider(
-            create: (_) => BrowseViewModel(),
-            child: const BrowseView(),
-          ),
-        ),
-      );
-    } else if (card.route == 'claims') {
-      Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => ChangeNotifierProvider(
-            create: (_) => ClaimsViewModel(),
-            child: const ClaimsView(),
-          ),
-        ),
-      );
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: () => _onTap(context),
+      onTap: onTap,
       child: Container(
+        padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(20),
+          color: color,
+          borderRadius: BorderRadius.circular(24),
           boxShadow: [
             BoxShadow(
-              color: card.color.withValues(alpha: 0.15),
-              blurRadius: 16,
-              offset: const Offset(0, 6),
+              color: color.withValues(alpha: 0.3),
+              blurRadius: 15,
+              offset: const Offset(0, 8),
             ),
           ],
         ),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.2),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Icon(icon, color: Colors.white, size: 32),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    description,
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.85),
+                      fontSize: 13,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.arrow_forward_ios_rounded,
+                color: Colors.white, size: 18),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Grouped Card (Lost) ───────────────────────────────────────────────────────
+
+class _GroupedLostCard extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    const accent = Color(0xFFD81B60);
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: accent.withValues(alpha: 0.1)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 15,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
             children: [
-              Container(
-                width: 52,
-                height: 52,
-                decoration: BoxDecoration(
-                  color: card.color.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Icon(card.icon, color: card.color, size: 28),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                card.label,
-                textAlign: TextAlign.center,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
-                  color: Color(0xFF1A237E),
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                card.description,
-                textAlign: TextAlign.center,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
+              const Icon(Icons.report_gmailerrorred_rounded,
+                  color: accent, size: 24),
+              const SizedBox(width: 8),
+              const Text(
+                'I Lost Something',
                 style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w500,
-                  color: Colors.grey.shade600,
-                  height: 1.3,
+                  fontSize: 17,
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFF0D2B6B),
                 ),
               ),
             ],
           ),
+          const SizedBox(height: 16),
+          _LostSubAction(
+            icon: Icons.search_rounded,
+            label: 'Find My Lost Item',
+            sublabel: 'Visual Search with AI',
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const SearchView()),
+            ),
+          ),
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 12),
+            child: Divider(height: 1),
+          ),
+          _LostSubAction(
+            icon: Icons.edit_note_rounded,
+            label: 'Report Lost Item',
+            sublabel: 'Submit a manual report',
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                  builder: (_) => const ReportItemView(isLost: true)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _LostSubAction extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String sublabel;
+  final VoidCallback onTap;
+
+  const _LostSubAction({
+    required this.icon,
+    required this.label,
+    required this.sublabel,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: const Color(0xFFD81B60).withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: const Icon(Icons.arrow_forward_rounded,
+                color: Color(0xFFD81B60), size: 20),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF1A237E),
+                  ),
+                ),
+                Text(
+                  sublabel,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey.shade600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const Icon(Icons.chevron_right_rounded, color: Colors.grey),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Rectangular Action Card ──────────────────────────────────────────────────
+
+class _RectActionCard extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String description;
+  final Color color;
+  final VoidCallback onTap;
+
+  const _RectActionCard({
+    required this.icon,
+    required this.label,
+    required this.description,
+    required this.color,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(18),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.04),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(icon, color: color, size: 22),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF1A237E),
+                    ),
+                  ),
+                  Text(
+                    description,
+                    style: TextStyle(
+                      fontSize: 11.5,
+                      color: Colors.grey.shade500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(Icons.chevron_right_rounded, color: Colors.grey.shade400),
+          ],
         ),
       ),
     );

@@ -2,6 +2,8 @@
 - [x] Implementing Remember Me Feature
 - [x] Enhancing Automated Description Generator
 - [x] Implementing Persistent Login (Auto-Login)
-    - [x] Update `AuthViewModel` to manage persistence preference
-    - [x] Update `main.dart` to handle initial session routing
-    - [x] Verify Auto-Login functionality
+- [x] Redesigning Dashboard Layout
+    - [x] Create new large category widgets for Found/Lost items
+    - [x] Convert secondary action cards to rectangular style
+    - [x] Update `DashboardView` to use the new layout structure
+    - [x] Verify UI look and navigation
