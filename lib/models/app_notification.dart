@@ -8,6 +8,10 @@ class AppNotification {
   /// The found item this alert points to (null for non-match notifications).
   final String? itemId;
 
+  /// Distinguishes alert kinds, e.g. 'claim_request' (someone claimed your
+  /// found item) vs. a match alert (null / other). Drives where a tap goes.
+  final String? type;
+
   const AppNotification({
     required this.id,
     required this.title,
@@ -15,7 +19,12 @@ class AppNotification {
     required this.isRead,
     required this.createdAt,
     this.itemId,
+    this.type,
   });
+
+  /// True when this alert is a finder's "someone wants to claim your item"
+  /// notification, which should open the Claims → Requests tab.
+  bool get isClaimRequest => type == 'claim_request';
 
   AppNotification copyWith({bool? isRead}) {
     return AppNotification(
@@ -25,6 +34,7 @@ class AppNotification {
       isRead: isRead ?? this.isRead,
       createdAt: createdAt,
       itemId: itemId,
+      type: type,
     );
   }
 
@@ -37,6 +47,7 @@ class AppNotification {
       createdAt: DateTime.tryParse(map['created_at'] as String? ?? '') ??
           DateTime.now(),
       itemId: map['item_id'] as String?,
+      type: map['type'] as String?,
     );
   }
 }

@@ -6,7 +6,10 @@ import '../../viewmodels/claims_viewmodel.dart';
 import 'chat_view.dart';
 
 class ClaimsView extends StatefulWidget {
-  const ClaimsView({super.key});
+  /// Which tab to open on: 0 = My Claims, 1 = Requests.
+  final int initialTab;
+
+  const ClaimsView({super.key, this.initialTab = 0});
 
   @override
   State<ClaimsView> createState() => _ClaimsViewState();
@@ -28,6 +31,7 @@ class _ClaimsViewState extends State<ClaimsView> {
   Widget build(BuildContext context) {
     return DefaultTabController(
       length: 2,
+      initialIndex: widget.initialTab,
       child: Scaffold(
         backgroundColor: const Color(0xFFF0F4FF),
         appBar: AppBar(

@@ -126,33 +126,49 @@ class _DashboardViewState extends State<DashboardView> {
           ),
         ],
       ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _currentIndex,
-        onDestinationSelected: (i) {
-          setState(() => _currentIndex = i);
-          if (i == 1) _notifVM.fetchNotifications(); // refresh inbox on open
-          if (i == 2) _profileVM.loadUserData(); // refresh stats on open
+      // Rebuild the nav bar whenever the unread count changes so the red badge
+      // on "Messages" appears/updates live (e.g. a new claim request arrives).
+      bottomNavigationBar: ListenableBuilder(
+        listenable: _notifVM,
+        builder: (context, _) {
+          final unread = _notifVM.unreadCount;
+          return NavigationBar(
+            selectedIndex: _currentIndex,
+            onDestinationSelected: (i) {
+              setState(() => _currentIndex = i);
+              if (i == 1) _notifVM.fetchNotifications(); // refresh inbox on open
+              if (i == 2) _profileVM.loadUserData(); // refresh stats on open
+            },
+            backgroundColor: Colors.white,
+            indicatorColor: _primaryBlue.withValues(alpha: 0.12),
+            destinations: [
+              const NavigationDestination(
+                icon: Icon(Icons.home_outlined),
+                selectedIcon: Icon(Icons.home_rounded, color: _primaryBlue),
+                label: 'Home',
+              ),
+              NavigationDestination(
+                icon: Badge(
+                  isLabelVisible: unread > 0,
+                  label: Text('$unread'),
+                  child: const Icon(Icons.chat_bubble_outline_rounded),
+                ),
+                selectedIcon: Badge(
+                  isLabelVisible: unread > 0,
+                  label: Text('$unread'),
+                  child: const Icon(Icons.chat_bubble_rounded,
+                      color: _primaryBlue),
+                ),
+                label: 'Messages',
+              ),
+              const NavigationDestination(
+                icon: Icon(Icons.person_outline_rounded),
+                selectedIcon: Icon(Icons.person_rounded, color: _primaryBlue),
+                label: 'Profile',
+              ),
+            ],
+          );
         },
-        backgroundColor: Colors.white,
-        indicatorColor: _primaryBlue.withValues(alpha: 0.12),
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.home_outlined),
-            selectedIcon: Icon(Icons.home_rounded, color: _primaryBlue),
-            label: 'Home',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.chat_bubble_outline_rounded),
-            selectedIcon:
-                Icon(Icons.chat_bubble_rounded, color: _primaryBlue),
-            label: 'Messages',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.person_outline_rounded),
-            selectedIcon: Icon(Icons.person_rounded, color: _primaryBlue),
-            label: 'Profile',
-          ),
-        ],
       ),
     );
   }

@@ -14,6 +14,10 @@ drop table if exists public.item_secrets   cascade;
 -- 1. Security question lives on the found item (the ANSWER is stored separately)
 alter table public.found_items add column if not exists security_question text;
 
+-- 1b. Notifications get a type so the app can route them (e.g. a 'claim_request'
+--     alert opens the Requests tab; match alerts keep their default behaviour).
+alter table public.notifications add column if not exists type text;
+
 -- 2. Secret answers — locked down so ONLY the finder can read them.
 --    Claimants can never select this table (Zero-Trust).
 create table if not exists public.item_secrets (
@@ -92,17 +96,19 @@ security definer
 set search_path = public
 as $$
 declare
-  v_uid    uuid := auth.uid();
-  v_finder uuid;
-  v_answer text;
-  v_id     uuid;
+  v_uid      uuid := auth.uid();
+  v_finder   uuid;
+  v_category text;
+  v_answer   text;
+  v_id       uuid;
   v_attempts int;
-  v_locked boolean;
-  v_status text;
+  v_locked   boolean;
+  v_status   text;
 begin
   if v_uid is null then return 'NOT_AUTHENTICATED'; end if;
 
-  select user_id into v_finder from found_items where id = p_item_id;
+  select user_id, category into v_finder, v_category
+    from found_items where id = p_item_id;
   if v_finder is null then return 'ITEM_NOT_FOUND'; end if;
   if v_finder = v_uid then return 'OWN_ITEM'; end if;
 
@@ -126,6 +132,19 @@ begin
     else
       update claims set status = 'Pending', updated_at = now() where id = v_id;
     end if;
+    -- Notify the finder so they don't have to keep checking the Requests tab.
+    -- (Runs under security definer, so it may write a row for another user.)
+    insert into notifications(user_id, title, message, item_id, is_read, type)
+      values (
+        v_finder,
+        'New claim request',
+        'Someone passed the ownership question for your '
+          || coalesce(v_category, 'item')
+          || ' and wants to claim it. Open Requests to review.',
+        p_item_id,
+        false,
+        'claim_request'
+      );
     return 'PASSED';
   else
     if v_id is null then

@@ -5,7 +5,9 @@ import '../../models/app_notification.dart';
 import '../../models/item_report.dart';
 import '../../models/match_result.dart';
 import '../../services/api_service.dart';
+import '../../viewmodels/claims_viewmodel.dart';
 import '../../viewmodels/notifications_viewmodel.dart';
+import '../claims/claims_view.dart';
 import '../search/item_detail_view.dart';
 
 class NotificationsView extends StatefulWidget {
@@ -28,11 +30,26 @@ class _NotificationsViewState extends State<NotificationsView> {
     });
   }
 
-  /// Marks the alert read and, if it points to a found item, opens its detail
-  /// page so the user can claim it.
+  /// Marks the alert read and opens the right place:
+  ///  • a claim-request alert → the Claims → Requests tab (no need to hunt for
+  ///    it manually);
+  ///  • a match alert → the found item's detail page so the user can claim it.
   Future<void> _openNotification(
       BuildContext context, NotificationsViewModel vm, AppNotification n) async {
     if (!n.isRead) vm.markAsRead(n.id);
+
+    if (n.isClaimRequest) {
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => ChangeNotifierProvider(
+            create: (_) => ClaimsViewModel(),
+            child: const ClaimsView(initialTab: 1), // 1 = Requests
+          ),
+        ),
+      );
+      return;
+    }
+
     if (n.itemId == null) return;
 
     showDialog(
