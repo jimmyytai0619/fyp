@@ -36,6 +36,10 @@ SUPABASE_URL = os.getenv("SUPABASE_URL", "")
 SUPABASE_SERVICE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
 MATCH_THRESHOLD = float(os.getenv("MATCH_THRESHOLD", "50"))   # FR 3.4 — search
 NOTIFY_THRESHOLD = float(os.getenv("NOTIFY_THRESHOLD", "75"))  # FR 4.4 — alerts
+# Reverse direction only: when a LOSER submits a lost report, alert them about an
+# already-found item at a more lenient bar (they're actively hoping for a match),
+# while keeping the forward alert (NOTIFY_THRESHOLD) and search accurate.
+LOST_NOTIFY_THRESHOLD = float(os.getenv("LOST_NOTIFY_THRESHOLD", "50"))
 FOUND_TABLE = "found_items"
 LOST_TABLE = "lost_items"
 
@@ -303,8 +307,8 @@ async def ingest_lost(item_id: str = Form(...)):
     """
     Reverse-direction matching. Called when a new LOST item is reported.
     Compares it against every already-reported FOUND item and, if a match is
-    above NOTIFY_THRESHOLD, alerts the LOSER — so it works even when the finder
-    posted first.
+    above LOST_NOTIFY_THRESHOLD (a more lenient bar than the forward alert),
+    alerts the LOSER — so it works even when the finder posted first.
     """
     if supabase is None:
         raise HTTPException(status_code=500, detail="Supabase is not configured.")
@@ -343,7 +347,7 @@ async def ingest_lost(item_id: str = Form(...)):
             best_score = score
             best_found = fr
 
-    if best_found is None or best_score < NOTIFY_THRESHOLD:
+    if best_found is None or best_score < LOST_NOTIFY_THRESHOLD:
         return {"notified": 0, "best_score": round(best_score, 1)}
 
     # 3. Alert the loser (owner of this lost report)

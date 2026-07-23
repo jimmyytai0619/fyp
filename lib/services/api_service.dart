@@ -143,12 +143,35 @@ class ApiService {
     await _client.from('claims').update({'status': status}).eq('id', claimId);
   }
 
+  /// FR 5.3 — Finder approves ('Verified') or rejects ('Rejected') a claim.
+  /// Runs server-side so the claimant is notified of the decision (a cross-user
+  /// notification the client can't write directly under RLS). Returns the RPC
+  /// status: OK, NOT_FINDER, NOT_FOUND, BAD_DECISION, NOT_AUTHENTICATED.
+  Future<String> decideClaim(String claimId, String decision) async {
+    final res = await _client.rpc('decide_claim', params: {
+      'p_claim_id': claimId,
+      'p_decision': decision,
+    });
+    return res as String;
+  }
+
   /// Flags a found item as returned so it counts toward the finder's
   /// "Items Returned" contribution stat. Best-effort.
   Future<void> markFoundItemReturned(String foundItemId) async {
     await _client
         .from('found_items')
         .update({'is_returned': true}).eq('id', foundItemId);
+  }
+
+  /// FR 5.5 — Marks a claim's handover complete. Runs server-side so it also
+  /// flags the found item returned AND notifies the other party of the return
+  /// (a cross-user notification the client can't write directly under RLS).
+  /// Returns the RPC status: OK, NOT_PARTY, NOT_FOUND, NOT_AUTHENTICATED.
+  Future<String> markReturnedClaim(String claimId) async {
+    final res = await _client.rpc('mark_returned', params: {
+      'p_claim_id': claimId,
+    });
+    return res as String;
   }
 
   /// FR 5.6 — Records the chosen campus safe zone for the handover.

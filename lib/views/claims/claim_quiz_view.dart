@@ -44,6 +44,9 @@ class _ClaimQuizViewState extends State<ClaimQuizView> {
       result = await ApiService()
           .submitClaim(itemId: widget.itemId, answer: _answerCtrl.text);
     } catch (e) {
+      // Surface the real database/RPC error instead of hiding it — otherwise a
+      // correct answer that fails server-side looks like a generic glitch.
+      debugPrint('[ClaimQuizView] submitClaim error: $e');
       if (!mounted) return;
       setState(() => _submitting = false);
       _snack('Something went wrong. Please try again.', isError: true);

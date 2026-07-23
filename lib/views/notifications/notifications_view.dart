@@ -31,19 +31,21 @@ class _NotificationsViewState extends State<NotificationsView> {
   }
 
   /// Marks the alert read and opens the right place:
-  ///  • a claim-request alert → the Claims → Requests tab (no need to hunt for
-  ///    it manually);
+  ///  • a claim-request alert (finder) → the Claims → Requests tab;
+  ///  • a claim-decision alert (claimant) → the Claims → My Claims tab, where
+  ///    they arrange the handover;
   ///  • a match alert → the found item's detail page so the user can claim it.
   Future<void> _openNotification(
       BuildContext context, NotificationsViewModel vm, AppNotification n) async {
     if (!n.isRead) vm.markAsRead(n.id);
 
-    if (n.isClaimRequest) {
+    if (n.isClaimRequest || n.isClaimDecision || n.isClaimReturned) {
       Navigator.of(context).push(
         MaterialPageRoute(
           builder: (_) => ChangeNotifierProvider(
             create: (_) => ClaimsViewModel(),
-            child: const ClaimsView(initialTab: 1), // 1 = Requests
+            // Finder reviews in Requests (1); claimant sees theirs in My Claims (0).
+            child: ClaimsView(initialTab: n.isClaimRequest ? 1 : 0),
           ),
         ),
       );

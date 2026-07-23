@@ -26,6 +26,14 @@ class AppNotification {
   /// notification, which should open the Claims → Requests tab.
   bool get isClaimRequest => type == 'claim_request';
 
+  /// True when this alert tells the claimant the finder approved/rejected their
+  /// claim, which should open the Claims → My Claims tab.
+  bool get isClaimDecision => type == 'claim_decision';
+
+  /// True when this alert confirms the handover is complete (item returned),
+  /// which should also open the Claims → My Claims tab.
+  bool get isClaimReturned => type == 'claim_returned';
+
   AppNotification copyWith({bool? isRead}) {
     return AppNotification(
       id: id,
