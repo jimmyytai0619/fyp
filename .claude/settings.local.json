@@ -38,7 +38,11 @@
       "Bash(curl -s https://wsmwxtcdjvburvptuqbb.supabase.co/rest/v1/ -H 'apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndzbXd4dGNkanZidXJ2cHR1cWJiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA1NzY5ODAsImV4cCI6MjA5NjE1Mjk4MH0.ayAuRfGzLl6AwPeSQsJL9KpWEv6sKH9e_3tL85Yyrvs' -H 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndzbXd4dGNkanZidXJ2cHR1cWJiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA1NzY5ODAsImV4cCI6MjA5NjE1Mjk4MH0.ayAuRfGzLl6AwPeSQsJL9KpWEv6sKH9e_3tL85Yyrvs' -o /tmp/openapi.json)",
       "Read(//tmp/**)",
       "Bash(python -m py_compile backend/main.py)",
-      "Bash(python3 -m py_compile backend/main.py)"
+      "Bash(python3 -m py_compile backend/main.py)",
+      "Bash(git stash *)",
+      "Bash(curl -s -o /dev/null -w \"HTTP status from http://127.0.0.1:8000/ : %{http_code}\\\\n\" --max-time 4 http://127.0.0.1:8000/)",
+      "Bash(curl -s -o /dev/null -w \"HTTP status from /docs : %{http_code}\\\\n\" --max-time 4 http://127.0.0.1:8000/docs)",
+      "Bash(curl -s --max-time 5 http://127.0.0.1:8000/openapi.json)"
     ]
   }
 }

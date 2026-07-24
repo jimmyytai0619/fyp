@@ -40,6 +40,13 @@ NOTIFY_THRESHOLD = float(os.getenv("NOTIFY_THRESHOLD", "75"))  # FR 4.4 — aler
 # already-found item at a more lenient bar (they're actively hoping for a match),
 # while keeping the forward alert (NOTIFY_THRESHOLD) and search accurate.
 LOST_NOTIFY_THRESHOLD = float(os.getenv("LOST_NOTIFY_THRESHOLD", "50"))
+# Same-building signal (lost-report matching only). If a found item sits in the
+# SAME building the loser reported, boost the image score by LOCATION_BOOST, so a
+# same-building item is more likely to alert them. And when the lost report has no
+# usable photo, a same-building + same-category find still notifies at
+# SAME_BUILDING_MATCH_SCORE (location is the only signal we have then).
+LOCATION_BOOST = float(os.getenv("LOCATION_BOOST", "15"))
+SAME_BUILDING_MATCH_SCORE = float(os.getenv("SAME_BUILDING_MATCH_SCORE", "60"))
 FOUND_TABLE = "found_items"
 LOST_TABLE = "lost_items"
 
@@ -109,6 +116,22 @@ def cosine_similarity(a: np.ndarray, b: np.ndarray) -> float:
     if denom == 0:
         return 0.0
     return float(np.dot(a, b) / denom)
+
+
+def building_of(location: Optional[str]) -> str:
+    """The building/area from a composed 'Building — Spot' location string.
+
+    The app's location picker joins the two levels with an em dash, e.g.
+    'Block A — Lecture Hall', so the building is everything before the dash.
+    Lower-cased for case-insensitive comparison; '' when unknown.
+    """
+    if not location:
+        return ""
+    # Split on em dash (the picker's separator) or a plain hyphen, just in case.
+    for sep in ("—", " - ", "-"):
+        if sep in location:
+            return location.split(sep)[0].strip().lower()
+    return location.strip().lower()
 
 
 def _parse_embedding(raw) -> Optional[np.ndarray]:
@@ -239,9 +262,11 @@ async def search(
 async def ingest_found(item_id: str = Form(...)):
     """
     FR 4.3 / 4.4 — Background matching agent.
-    Called when a new FOUND item is reported. Compares it against every
-    active (unresolved) LOST report and, for any match above NOTIFY_THRESHOLD,
-    writes a notification for the lost item's owner.
+    Called when a new FOUND item is reported. Compares it against every active
+    (unresolved) LOST report and notifies the lost item's owner when either:
+      • the photos match above NOTIFY_THRESHOLD (boosted if same building), or
+      • it's the SAME building + SAME category as their lost report — so a loser
+        is alerted even when their photo doesn't visually match (or they had none).
     """
     if supabase is None:
         raise HTTPException(status_code=500, detail="Supabase is not configured.")
@@ -258,9 +283,9 @@ async def ingest_found(item_id: str = Form(...)):
         raise HTTPException(status_code=404, detail="Found item not found.")
 
     found = found_rows[0]
-    found_vec = embedding_for_row(FOUND_TABLE, found)
-    if found_vec is None:
-        return {"notified": 0, "detail": "found item has no usable image"}
+    found_vec = embedding_for_row(FOUND_TABLE, found)     # may be None
+    found_building = building_of(found.get("location_found"))
+    found_category = (found.get("category") or "").strip().lower()
 
     # 2. Compare against all active lost reports
     try:
@@ -272,15 +297,39 @@ async def ingest_found(item_id: str = Form(...)):
     for lr in lost_rows:
         if lr.get("is_resolved"):
             continue
-        lvec = embedding_for_row(LOST_TABLE, lr)
-        if lvec is None:
-            continue
 
-        score = cosine_similarity(found_vec, lvec) * 100.0
-        if score < NOTIFY_THRESHOLD:
+        same_building = bool(found_building) and \
+            building_of(lr.get("location_found")) == found_building
+        same_category = bool(found_category) and \
+            (lr.get("category") or "").strip().lower() == found_category
+
+        alert = False
+        score = 0.0
+
+        # (a) Visual match, boosted when it's the same building.
+        if found_vec is not None:
+            lvec = embedding_for_row(LOST_TABLE, lr)
+            if lvec is not None:
+                score = cosine_similarity(found_vec, lvec) * 100.0
+                if same_building:
+                    score = min(100.0, score + LOCATION_BOOST)
+                if score >= NOTIFY_THRESHOLD:
+                    alert = True
+
+        # (b) Location signal: same building + same category always alerts, even
+        #     if the photos don't match or the lost report has no photo.
+        if not alert and same_building and same_category:
+            alert = True
+            score = max(score, SAME_BUILDING_MATCH_SCORE)
+
+        if not alert:
             continue
 
         # 3. Notify the owner of the lost report (FR 4.4)
+        same_building_note = (
+            " It was found in the same building you reported."
+            if same_building else ""
+        )
         try:
             supabase.table("notifications").insert(
                 {
@@ -289,7 +338,7 @@ async def ingest_found(item_id: str = Form(...)):
                     "message": (
                         f"A {found.get('category', 'item')} matching your lost "
                         f"report was just reported found at "
-                        f"{found.get('location_found', 'campus')}."
+                        f"{found.get('location_found', 'campus')}.{same_building_note}"
                     ),
                     "item_id": found.get("id"),
                     "is_read": False,
@@ -325,9 +374,9 @@ async def ingest_lost(item_id: str = Form(...)):
         raise HTTPException(status_code=404, detail="Lost item not found.")
 
     lost = lost_rows[0]
-    lost_vec = embedding_for_row(LOST_TABLE, lost)
-    if lost_vec is None:
-        return {"notified": 0, "detail": "lost item has no usable image"}
+    lost_vec = embedding_for_row(LOST_TABLE, lost)       # may be None (no photo)
+    lost_building = building_of(lost.get("location_found"))
+    lost_category = (lost.get("category") or "").strip().lower()
 
     # 2. Compare against all found items
     try:
@@ -338,19 +387,40 @@ async def ingest_lost(item_id: str = Form(...)):
     # Find the single best match so we don't spam the loser with duplicates.
     best_score = 0.0
     best_found = None
+    best_same_building = False
     for fr in found_rows:
-        fvec = embedding_for_row(FOUND_TABLE, fr)
-        if fvec is None:
+        same_building = bool(lost_building) and \
+            building_of(fr.get("location_found")) == lost_building
+
+        if lost_vec is not None:
+            # Image available: score by visual similarity, boosted if same building.
+            fvec = embedding_for_row(FOUND_TABLE, fr)
+            if fvec is None:
+                continue
+            score = cosine_similarity(lost_vec, fvec) * 100.0
+            if same_building:
+                score = min(100.0, score + LOCATION_BOOST)
+        elif same_building and lost_category and \
+                (fr.get("category") or "").strip().lower() == lost_category:
+            # No photo on the lost report: fall back to same building + same
+            # category as the only signal available.
+            score = SAME_BUILDING_MATCH_SCORE
+        else:
             continue
-        score = cosine_similarity(lost_vec, fvec) * 100.0
+
         if score > best_score:
             best_score = score
             best_found = fr
+            best_same_building = same_building
 
     if best_found is None or best_score < LOST_NOTIFY_THRESHOLD:
         return {"notified": 0, "best_score": round(best_score, 1)}
 
     # 3. Alert the loser (owner of this lost report)
+    same_building_note = (
+        " It was found in the same building you reported."
+        if best_same_building else ""
+    )
     try:
         supabase.table("notifications").insert(
             {
@@ -359,7 +429,7 @@ async def ingest_lost(item_id: str = Form(...)):
                 "message": (
                     f"A {best_found.get('category', 'item')} matching your lost "
                     f"report may already be waiting — reported found at "
-                    f"{best_found.get('location_found', 'campus')}."
+                    f"{best_found.get('location_found', 'campus')}.{same_building_note}"
                 ),
                 "item_id": best_found.get("id"),
                 "is_read": False,
@@ -369,4 +439,8 @@ async def ingest_lost(item_id: str = Form(...)):
         print(f"(note) could not insert notification: {e}")
         return {"notified": 0}
 
-    return {"notified": 1, "best_score": round(best_score, 1)}
+    return {
+        "notified": 1,
+        "best_score": round(best_score, 1),
+        "same_building": best_same_building,
+    }
