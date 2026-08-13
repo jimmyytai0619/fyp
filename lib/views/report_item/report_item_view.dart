@@ -32,6 +32,7 @@ class _ReportItemViewState extends State<ReportItemView> {
     'Keys & Lanyards',
     'Books & Stationery',
     'Clothing & Accessories',
+    'Water Bottles',
     'Other',
   ];
   String _selectedCategory = 'Electronics';

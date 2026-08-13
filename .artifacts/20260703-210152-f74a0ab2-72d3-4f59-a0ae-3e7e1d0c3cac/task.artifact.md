@@ -3,7 +3,8 @@
 - [x] Enhancing Automated Description Generator
 - [x] Implementing Persistent Login (Auto-Login)
 - [x] Redesigning Dashboard Layout
-    - [x] Create new large category widgets for Found/Lost items
-    - [x] Convert secondary action cards to rectangular style
-    - [x] Update `DashboardView` to use the new layout structure
-    - [x] Verify UI look and navigation
+- [x] Adding Water Bottle Category
+    - [x] Update `ClassificationService` with bottle mapping
+    - [x] Update `BrowseViewModel` & `SearchViewModel` lists
+    - [x] Update `ReportItemView` dropdown
+    - [x] Verify changes

@@ -124,6 +124,7 @@ class ClassificationService {
     'Keys & Lanyards',
     'Books & Stationery',
     'Clothing & Accessories',
+    'Water Bottles',
     'Other',
   ];
 
@@ -269,9 +270,13 @@ class ClassificationService {
 
     const clothingAndAccessories = [
       'umbrella', 'glasses', 'sunglasses', 'jewelry', 'ring',
-      'necklace', 'bracelet', 'hat', 'cap', 'scarf', 'glove', 'water bottle',
-      'bottle', 'tumbler', 'flask', 'clothing', 'shirt', 'jacket', 'coat',
+      'necklace', 'bracelet', 'hat', 'cap', 'scarf', 'glove',
+      'clothing', 'shirt', 'jacket', 'coat',
       'shoe', 'sneaker', 'sandal', 'socks', 'belt',
+    ];
+
+    const waterBottles = [
+      'water bottle', 'bottle', 'tumbler', 'flask', 'mug', 'cup', 'thermos',
     ];
 
     bool hit(List<String> keys) => keys.any(label.contains);
@@ -282,6 +287,7 @@ class ClassificationService {
     if (hit(keysAndLanyards)) return 'Keys & Lanyards';
     if (hit(booksAndStationery)) return 'Books & Stationery';
     if (hit(clothingAndAccessories)) return 'Clothing & Accessories';
+    if (hit(waterBottles)) return 'Water Bottles';
 
     return 'Other';
   }

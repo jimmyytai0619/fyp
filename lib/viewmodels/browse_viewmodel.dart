@@ -30,6 +30,7 @@ class BrowseViewModel extends ChangeNotifier {
     'Keys & Lanyards',
     'Books & Stationery',
     'Clothing & Accessories',
+    'Water Bottles',
     'Other',
   ];
 

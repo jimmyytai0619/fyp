@@ -115,7 +115,6 @@ class ReportItemViewModel extends ChangeNotifier {
         throw Exception('Please enter a description of your lost item.');
       }
     }
-
     _setLoading(true);
     try {
       final tagList = tags
