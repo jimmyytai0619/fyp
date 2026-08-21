@@ -47,6 +47,10 @@ dependencies:
   google_mlkit_text_recognition: ^0.15.0   # OCR for brand/logo text (FR 2.6)
   shared_preferences: ^2.5.5
 
+  # ── Secure handover verification (QR + code) ──
+  qr_flutter: ^4.1.0        # renders the handover QR (pure Dart, no native)
+  mobile_scanner: ^5.2.3    # scans the QR (camera); code entry is the fallback
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

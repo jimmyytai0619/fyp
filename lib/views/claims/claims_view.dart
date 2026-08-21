@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 import '../../models/claim.dart';
 import '../../viewmodels/claims_viewmodel.dart';
 import 'chat_view.dart';
+import 'handover_view.dart';
 
 class ClaimsView extends StatefulWidget {
   /// Which tab to open on: 0 = My Claims, 1 = Requests.
@@ -233,41 +234,47 @@ class _ClaimCard extends StatelessWidget {
 
     // Verified → open chat (both sides); finder can also mark returned
     if (claim.status == 'Verified') {
-      return Row(
+      return Column(
         children: [
-          Expanded(
-            child: ElevatedButton.icon(
-              onPressed: () => Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) =>
-                      ChatView(claim: claim, isFinder: asFinder),
+          Row(
+            children: [
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: () => Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) =>
+                          ChatView(claim: claim, isFinder: asFinder),
+                    ),
+                  ),
+                  icon: const Icon(Icons.chat_bubble_outline_rounded, size: 18),
+                  label: const Text('Open Chat'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF1565C0),
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10)),
+                  ),
                 ),
               ),
-              icon: const Icon(Icons.chat_bubble_outline_rounded, size: 18),
-              label: const Text('Open Chat'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF1565C0),
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10)),
-              ),
-            ),
+              if (asFinder) ...[
+                const SizedBox(width: 10),
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => _markReturnedWithProof(context, vm),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: const Color(0xFF2E7D32),
+                      side: const BorderSide(color: Color(0xFF2E7D32)),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10)),
+                    ),
+                    child: const Text('Mark Returned'),
+                  ),
+                ),
+              ],
+            ],
           ),
-          if (asFinder) ...[
-            const SizedBox(width: 10),
-            Expanded(
-              child: OutlinedButton(
-                onPressed: () => _markReturnedWithProof(context, vm),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: const Color(0xFF2E7D32),
-                  side: const BorderSide(color: Color(0xFF2E7D32)),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10)),
-                ),
-                child: const Text('Mark Returned'),
-              ),
-            ),
-          ],
+          const SizedBox(height: 10),
+          _handoverAction(context),
         ],
       );
     }
@@ -316,6 +323,62 @@ class _ClaimCard extends StatelessWidget {
       );
     }
     return const SizedBox.shrink();
+  }
+
+  /// Secure-handover row on a verified claim: the finder shows a QR/code, the
+  /// claimant scans/enters it, and once done both see a "verified" badge.
+  Widget _handoverAction(BuildContext context) {
+    if (claim.handoverVerified) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 12),
+        decoration: BoxDecoration(
+          color: const Color(0xFFE8F5E9),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: const Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.verified_user_rounded,
+                size: 16, color: Color(0xFF2E7D32)),
+            SizedBox(width: 6),
+            Text('Handover verified',
+                style: TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF2E7D32))),
+          ],
+        ),
+      );
+    }
+
+    return SizedBox(
+      width: double.infinity,
+      child: OutlinedButton.icon(
+        onPressed: () async {
+          if (asFinder) {
+            Navigator.of(context).push(MaterialPageRoute(
+                builder: (_) => HandoverCodeView(claim: claim)));
+          } else {
+            final ok = await Navigator.of(context).push<bool>(
+                MaterialPageRoute(
+                    builder: (_) => HandoverVerifyView(claim: claim)));
+            if (ok == true && context.mounted) {
+              context.read<ClaimsViewModel>().fetchAll();
+            }
+          }
+        },
+        icon: Icon(asFinder ? Icons.qr_code_2_rounded : Icons.qr_code_scanner_rounded,
+            size: 18),
+        label: Text(asFinder ? 'Show Handover Code' : 'Verify Handover'),
+        style: OutlinedButton.styleFrom(
+          foregroundColor: const Color(0xFF1565C0),
+          side: const BorderSide(color: Color(0xFF1565C0)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        ),
+      ),
+    );
   }
 
   /// Finder marks the item returned — but must first attach a proof photo of the

@@ -20,6 +20,9 @@ class Claim {
   /// Handover proof photo the finder uploaded when marking the item returned.
   final String? returnEvidenceUrl;
 
+  /// True once the claimant has presented the finder's handover code (QR/PIN).
+  final bool handoverVerified;
+
   // Joined found-item details (for display)
   final String itemCategory;
   final String itemImageUrl;
@@ -39,6 +42,7 @@ class Claim {
     required this.itemImageUrl,
     required this.itemLocation,
     this.returnEvidenceUrl,
+    this.handoverVerified = false,
   });
 
   factory Claim.fromMap(Map<String, dynamic> map) {
@@ -55,6 +59,7 @@ class Claim {
       isLocked: map['is_locked'] as bool? ?? false,
       safeZone: map['safe_zone'] as String?,
       returnEvidenceUrl: map['return_evidence_url'] as String?,
+      handoverVerified: map['handover_verified'] as bool? ?? false,
       createdAt: DateTime.tryParse(map['created_at'] as String? ?? '') ??
           DateTime.now(),
       itemCategory: item['category'] as String? ?? 'Item',

@@ -38,6 +38,10 @@ class AppNotification {
   /// Claims → My Claims tab so the user can reply.
   bool get isChatMessage => type == 'chat_message';
 
+  /// True when the claimant verified the handover code — sent to the finder,
+  /// so it opens the Claims → Requests tab.
+  bool get isHandoverVerified => type == 'handover_verified';
+
   AppNotification copyWith({bool? isRead}) {
     return AppNotification(
       id: id,

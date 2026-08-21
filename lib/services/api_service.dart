@@ -10,9 +10,12 @@ import '../models/item_report.dart';
 import '../models/match_result.dart';
 
 /// Base URL of the Python FastAPI AI matching backend (Module 3).
-///   • Android emulator → 10.0.2.2 maps to the host machine's localhost
-///   • Real device      → replace with your PC's LAN IP (e.g. 192.168.1.x:8000)
-const String aiBackendBaseUrl = 'http://10.0.2.2:8000';
+///   • Real phone (current) → your PC's Wi-Fi/LAN IP; phone must be on the same
+///     Wi-Fi, and the backend started with --host 0.0.0.0.
+///   • Android emulator     → use 'http://10.0.2.2:8000' instead.
+/// NOTE: this LAN IP can change when the PC reconnects to Wi-Fi — re-check with
+/// `ipconfig` if AI matching stops working, and rebuild.
+const String aiBackendBaseUrl = 'http://192.168.0.17:8000';
 
 class ApiService {
   final _client = Supabase.instance.client;
@@ -181,6 +184,24 @@ class ApiService {
     final res = await _client.rpc('mark_returned', params: {
       'p_claim_id': claimId,
       'p_evidence_url': evidenceUrl,
+    });
+    return res as String;
+  }
+
+  /// FR 5.6 — Finder generates the one-time handover code for a verified claim.
+  /// Returns the 6-digit code, or a status (NOT_FINDER, NOT_VERIFIED, NOT_FOUND).
+  Future<String> startHandover(String claimId) async {
+    final res =
+        await _client.rpc('start_handover', params: {'p_claim_id': claimId});
+    return res as String;
+  }
+
+  /// FR 5.6 — Claimant presents the handover code (scanned or typed) to confirm
+  /// the two matched parties are together. Returns OK / BAD_CODE / NO_CODE / …
+  Future<String> verifyHandover(String claimId, String code) async {
+    final res = await _client.rpc('verify_handover', params: {
+      'p_claim_id': claimId,
+      'p_code': code,
     });
     return res as String;
   }

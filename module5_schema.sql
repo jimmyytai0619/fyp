@@ -358,3 +358,85 @@ drop trigger if exists trg_notify_claim_message on public.claim_messages;
 create trigger trg_notify_claim_message
   after insert on public.claim_messages
   for each row execute function public.notify_claim_message();
+
+-- 9. Secure handover verification (QR + 6-digit code). Finder generates a
+--    one-time code; the claimant must present it (scan QR or type) to prove the
+--    two matched parties are together before the item changes hands.
+alter table public.claims add column if not exists handover_verified boolean default false;
+
+-- Code lives in its own table so ONLY the finder can read it (Zero-Trust).
+create table if not exists public.claim_handovers (
+  claim_id   uuid primary key references public.claims(id) on delete cascade,
+  code       text not null,
+  created_at timestamptz default now()
+);
+alter table public.claim_handovers enable row level security;
+
+drop policy if exists "handover_finder_read" on public.claim_handovers;
+create policy "handover_finder_read" on public.claim_handovers for select
+  using (auth.uid() = (select finder_id from public.claims where id = claim_id));
+
+create or replace function public.start_handover(p_claim_id uuid)
+returns text
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_uid    uuid := auth.uid();
+  v_finder uuid;
+  v_status text;
+  v_code   text;
+begin
+  if v_uid is null then return 'NOT_AUTHENTICATED'; end if;
+  select finder_id, status into v_finder, v_status from claims where id = p_claim_id;
+  if v_finder is null then return 'NOT_FOUND'; end if;
+  if v_finder <> v_uid then return 'NOT_FINDER'; end if;
+  if v_status <> 'Verified' then return 'NOT_VERIFIED'; end if;
+
+  v_code := lpad((floor(random() * 1000000))::int::text, 6, '0');
+  insert into claim_handovers(claim_id, code)
+    values (p_claim_id, v_code)
+    on conflict (claim_id) do update set code = excluded.code, created_at = now();
+  return v_code;
+end;
+$$;
+grant execute on function public.start_handover(uuid) to authenticated;
+
+create or replace function public.verify_handover(p_claim_id uuid, p_code text)
+returns text
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_uid      uuid := auth.uid();
+  v_claimant uuid;
+  v_finder   uuid;
+  v_stored   text;
+begin
+  if v_uid is null then return 'NOT_AUTHENTICATED'; end if;
+  select claimant_id, finder_id into v_claimant, v_finder
+    from claims where id = p_claim_id;
+  if v_claimant is null then return 'NOT_FOUND'; end if;
+  if v_uid <> v_claimant then return 'NOT_CLAIMANT'; end if;
+
+  select code into v_stored from claim_handovers where claim_id = p_claim_id;
+  if v_stored is null then return 'NO_CODE'; end if;
+  if btrim(p_code) <> v_stored then return 'BAD_CODE'; end if;
+
+  update claims set handover_verified = true, updated_at = now()
+    where id = p_claim_id;
+
+  begin
+    insert into notifications(user_id, title, message, item_id, is_read, type)
+      values (v_finder, 'Handover verified',
+        'The claimant verified the handover code — you can safely hand over the item.',
+        null, false, 'handover_verified');
+  exception when others then null;
+  end;
+
+  return 'OK';
+end;
+$$;
+grant execute on function public.verify_handover(uuid, text) to authenticated;

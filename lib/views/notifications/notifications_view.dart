@@ -42,13 +42,15 @@ class _NotificationsViewState extends State<NotificationsView> {
     if (n.isClaimRequest ||
         n.isClaimDecision ||
         n.isClaimReturned ||
-        n.isChatMessage) {
+        n.isChatMessage ||
+        n.isHandoverVerified) {
+      // Finder-facing alerts open Requests (1); claimant-facing open My Claims (0).
+      final finderTab = n.isClaimRequest || n.isHandoverVerified;
       Navigator.of(context).push(
         MaterialPageRoute(
           builder: (_) => ChangeNotifierProvider(
             create: (_) => ClaimsViewModel(),
-            // Finder reviews in Requests (1); claimant sees theirs in My Claims (0).
-            child: ClaimsView(initialTab: n.isClaimRequest ? 1 : 0),
+            child: ClaimsView(initialTab: finderTab ? 1 : 0),
           ),
         ),
       );
