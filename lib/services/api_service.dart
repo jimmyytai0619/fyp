@@ -163,13 +163,24 @@ class ApiService {
         .update({'is_returned': true}).eq('id', foundItemId);
   }
 
+  /// Uploads a handover-proof photo to storage and returns its public URL.
+  /// Used as evidence when the finder marks an item returned (FoodPanda-style).
+  Future<String> uploadReturnEvidence(File image, String claimId) async {
+    final ext = image.path.split('.').last;
+    final fileName =
+        'returns/${claimId}_${DateTime.now().millisecondsSinceEpoch}.$ext';
+    await _client.storage.from('found-items').upload(fileName, image);
+    return _client.storage.from('found-items').getPublicUrl(fileName);
+  }
+
   /// FR 5.5 — Marks a claim's handover complete. Runs server-side so it also
-  /// flags the found item returned AND notifies the other party of the return
-  /// (a cross-user notification the client can't write directly under RLS).
+  /// flags the found item returned, stores the proof photo, AND notifies the
+  /// other party (a cross-user notification the client can't write under RLS).
   /// Returns the RPC status: OK, NOT_PARTY, NOT_FOUND, NOT_AUTHENTICATED.
-  Future<String> markReturnedClaim(String claimId) async {
+  Future<String> markReturnedClaim(String claimId, {String? evidenceUrl}) async {
     final res = await _client.rpc('mark_returned', params: {
       'p_claim_id': claimId,
+      'p_evidence_url': evidenceUrl,
     });
     return res as String;
   }
@@ -321,6 +332,19 @@ class ApiService {
   }) async {
     final table = isLost ? 'lost_items' : 'found_items';
     await _client.from(table).delete().eq('id', id);
+  }
+
+  /// Closes one of the user's own reports so it stops matching / alerting:
+  /// a lost report is marked resolved, a found item is marked returned.
+  /// Pass [reopen] true to re-activate it.
+  Future<void> resolveReport({
+    required String id,
+    required bool isLost,
+    bool reopen = false,
+  }) async {
+    final table = isLost ? 'lost_items' : 'found_items';
+    final column = isLost ? 'is_resolved' : 'is_returned';
+    await _client.from(table).update({column: !reopen}).eq('id', id);
   }
 
   Future<List<ItemReport>> getMyLostReports() async {

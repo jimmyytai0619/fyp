@@ -19,6 +19,10 @@ alter table public.found_items add column if not exists security_question text;
 --     an alert points to (also used by the backend's AI-match notifications).
 alter table public.notifications add column if not exists type text;
 alter table public.notifications add column if not exists item_id uuid;
+-- Handover proof photo, uploaded by the finder when marking an item returned.
+alter table public.claims add column if not exists return_evidence_url text;
+-- Lets a loser close a lost report so it stops generating match alerts.
+alter table public.lost_items add column if not exists is_resolved boolean default false;
 
 -- 2. Secret answers — locked down so ONLY the finder can read them.
 --    Claimants can never select this table (Zero-Trust).
@@ -233,7 +237,9 @@ grant execute on function public.decide_claim(uuid, text) to authenticated;
 --    and the item counts toward the finder's "Items Returned" stat. Security
 --    definer so the status update and cross-user notification bypass RLS, while
 --    verifying the caller is actually part of this claim.
-create or replace function public.mark_returned(p_claim_id uuid)
+drop function if exists public.mark_returned(uuid);
+create or replace function public.mark_returned(p_claim_id uuid,
+                                                p_evidence_url text default null)
 returns text
 language plpgsql
 security definer
@@ -259,11 +265,23 @@ begin
   if not found then return 'NOT_FOUND'; end if;
   if v_uid <> v_finder and v_uid <> v_claimant then return 'NOT_PARTY'; end if;
 
-  update claims set status = 'Returned', updated_at = now() where id = p_claim_id;
+  update claims set status = 'Returned', updated_at = now(),
+         return_evidence_url = coalesce(p_evidence_url, return_evidence_url)
+    where id = p_claim_id;
 
   -- Count it toward the finder's "Items Returned" stat (best-effort).
   begin
     update found_items set is_returned = true where id = v_item;
+  exception when others then null;
+  end;
+
+  -- Close the claimant's matching lost report(s) so they stop drawing match
+  -- alerts now that they've got their item back (best-effort).
+  begin
+    update lost_items set is_resolved = true
+      where user_id = v_claimant
+        and category = v_category
+        and coalesce(is_resolved, false) = false;
   exception when others then null;
   end;
 
@@ -290,4 +308,53 @@ begin
 end;
 $$;
 
-grant execute on function public.mark_returned(uuid) to authenticated;
+grant execute on function public.mark_returned(uuid, text) to authenticated;
+
+-- 8. Chat message alerts — notify the other party on a new handover message.
+--    De-duplicated: one unread 'chat_message' alert per recipient at a time.
+create or replace function public.notify_claim_message()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_finder    uuid;
+  v_claimant  uuid;
+  v_recipient uuid;
+begin
+  select finder_id, claimant_id into v_finder, v_claimant
+    from claims where id = new.claim_id;
+  if v_finder is null then return new; end if;
+
+  v_recipient := case when new.sender_id = v_finder then v_claimant else v_finder end;
+  if v_recipient is null or v_recipient = new.sender_id then return new; end if;
+
+  if exists (
+    select 1 from notifications
+    where user_id = v_recipient and type = 'chat_message' and is_read = false
+  ) then
+    return new;
+  end if;
+
+  begin
+    insert into notifications(user_id, title, message, item_id, is_read, type)
+      values (
+        v_recipient,
+        'New message',
+        'You have a new message about a handover. Open My Claims to reply.',
+        null,
+        false,
+        'chat_message'
+      );
+  exception when others then null;
+  end;
+
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_notify_claim_message on public.claim_messages;
+create trigger trg_notify_claim_message
+  after insert on public.claim_messages
+  for each row execute function public.notify_claim_message();

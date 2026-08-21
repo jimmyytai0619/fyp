@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/foundation.dart';
 
 import '../models/claim.dart';
@@ -62,17 +64,23 @@ class ClaimsViewModel extends ChangeNotifier {
     }
   }
 
-  /// Marks the handover complete. Runs server-side so it also flags the found
-  /// item returned (contribution stat) AND notifies the other party.
-  Future<void> markReturned(Claim claim) async {
+  /// Marks the handover complete with a required proof photo. Uploads the photo
+  /// as evidence, then runs the server-side mark_returned (which flags the found
+  /// item returned, stores the evidence, and notifies the other party).
+  /// Returns true on success so the view can react.
+  Future<bool> markReturned(Claim claim, File evidence) async {
     try {
-      final result = await ApiService().markReturnedClaim(claim.id);
+      final url = await ApiService().uploadReturnEvidence(evidence, claim.id);
+      final result =
+          await ApiService().markReturnedClaim(claim.id, evidenceUrl: url);
       debugPrint('[ClaimsViewModel] mark_returned result: $result');
       await fetchAll();
+      return true;
     } catch (e) {
-      _errorMessage = 'Could not update the claim. Please try again.';
+      _errorMessage = 'Could not mark returned. Please try again.';
       notifyListeners();
       debugPrint('[ClaimsViewModel] markReturned error: $e');
+      return false;
     }
   }
 

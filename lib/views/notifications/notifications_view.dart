@@ -39,7 +39,10 @@ class _NotificationsViewState extends State<NotificationsView> {
       BuildContext context, NotificationsViewModel vm, AppNotification n) async {
     if (!n.isRead) vm.markAsRead(n.id);
 
-    if (n.isClaimRequest || n.isClaimDecision || n.isClaimReturned) {
+    if (n.isClaimRequest ||
+        n.isClaimDecision ||
+        n.isClaimReturned ||
+        n.isChatMessage) {
       Navigator.of(context).push(
         MaterialPageRoute(
           builder: (_) => ChangeNotifierProvider(

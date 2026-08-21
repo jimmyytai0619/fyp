@@ -258,6 +258,26 @@ async def search(
     return {"matches": matches, "count": len(matches)}
 
 
+def notification_exists(user_id, item_id) -> bool:
+    """True if this user was already alerted about this item — used to avoid
+    pinging the same person repeatedly about the same match."""
+    if supabase is None or not user_id or not item_id:
+        return False
+    try:
+        rows = (
+            supabase.table("notifications")
+            .select("id")
+            .eq("user_id", user_id)
+            .eq("item_id", item_id)
+            .limit(1)
+            .execute()
+            .data
+        )
+        return bool(rows)
+    except Exception:
+        return False
+
+
 @app.post("/ingest-found")
 async def ingest_found(item_id: str = Form(...)):
     """
@@ -325,6 +345,10 @@ async def ingest_found(item_id: str = Form(...)):
         if not alert:
             continue
 
+        # De-dupe: don't alert the same person about the same item twice.
+        if notification_exists(lr.get("user_id"), found.get("id")):
+            continue
+
         # 3. Notify the owner of the lost report (FR 4.4)
         same_building_note = (
             " It was found in the same building you reported."
@@ -389,6 +413,8 @@ async def ingest_lost(item_id: str = Form(...)):
     best_found = None
     best_same_building = False
     for fr in found_rows:
+        if fr.get("is_returned"):
+            continue  # already handed back — stop matching against it
         same_building = bool(lost_building) and \
             building_of(fr.get("location_found")) == lost_building
 
@@ -415,6 +441,10 @@ async def ingest_lost(item_id: str = Form(...)):
 
     if best_found is None or best_score < LOST_NOTIFY_THRESHOLD:
         return {"notified": 0, "best_score": round(best_score, 1)}
+
+    # De-dupe: don't re-alert the loser about an item they were already told about.
+    if notification_exists(lost.get("user_id"), best_found.get("id")):
+        return {"notified": 0, "duplicate": True, "best_score": round(best_score, 1)}
 
     # 3. Alert the loser (owner of this lost report)
     same_building_note = (

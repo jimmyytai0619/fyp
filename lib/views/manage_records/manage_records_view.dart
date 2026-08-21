@@ -293,6 +293,39 @@ class _ItemList extends StatelessWidget {
     }
   }
 
+  /// Closes a report (lost → resolved, found → returned) or re-opens a closed
+  /// one. Keeps the card in place, just updates its state/badge.
+  Future<void> _resolveItem(BuildContext context, ItemReport item) async {
+    final reopen = item.isClosed;
+    try {
+      await context
+          .read<ManageRecordsViewModel>()
+          .resolveRecord(id: item.id, isLost: isLost, reopen: reopen);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(reopen
+                ? 'Report reopened.'
+                : (isLost
+                    ? 'Lost report marked resolved.'
+                    : 'Item marked returned.')),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e.toString().replaceFirst('Exception: ', '')),
+            backgroundColor: const Color(0xFFB00020),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     if (items.isEmpty) {
@@ -319,9 +352,34 @@ class _ItemList extends StatelessWidget {
           final item = items[i];
           return Dismissible(
             key: ValueKey(item.id),
-            direction: DismissDirection.endToStart,
-            confirmDismiss: (_) => _confirmDelete(context, item),
+            direction: DismissDirection.horizontal,
+            confirmDismiss: (dir) async {
+              if (dir == DismissDirection.endToStart) {
+                return _confirmDelete(context, item); // swipe left = delete
+              }
+              await _resolveItem(context, item); // swipe right = resolve/reopen
+              return false; // keep the card in place
+            },
             background: Container(
+              // swipe right → mark resolved (or reopen if already closed)
+              alignment: Alignment.centerLeft,
+              margin: const EdgeInsets.only(bottom: 12),
+              padding: const EdgeInsets.only(left: 24),
+              decoration: BoxDecoration(
+                color: item.isClosed
+                    ? const Color(0xFF757575)
+                    : const Color(0xFF2E7D32),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Icon(
+                  item.isClosed
+                      ? Icons.undo_rounded
+                      : Icons.check_circle_outline_rounded,
+                  color: Colors.white,
+                  size: 26),
+            ),
+            secondaryBackground: Container(
+              // swipe left → delete
               alignment: Alignment.centerRight,
               margin: const EdgeInsets.only(bottom: 12),
               padding: const EdgeInsets.only(right: 24),
@@ -459,7 +517,9 @@ class _RecordCard extends StatelessWidget {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      if (claimStatus != null)
+                      if (item.isClosed)
+                        _closedBadge()
+                      else if (claimStatus != null)
                         _ClaimBadge(status: claimStatus!)
                       else
                         _StatusBadge(status: item.status),
@@ -474,6 +534,30 @@ class _RecordCard extends StatelessWidget {
               ),
             ),
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _closedBadge() {
+    final label = item.isResolved ? 'Resolved' : 'Returned';
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+      decoration: BoxDecoration(
+        color: const Color(0xFFE8F5E9),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.check_circle_rounded,
+              size: 12, color: Color(0xFF2E7D32)),
+          const SizedBox(width: 4),
+          Text(label,
+              style: const TextStyle(
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF2E7D32))),
         ],
       ),
     );

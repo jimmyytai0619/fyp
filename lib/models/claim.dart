@@ -17,6 +17,9 @@ class Claim {
   final String? safeZone;
   final DateTime createdAt;
 
+  /// Handover proof photo the finder uploaded when marking the item returned.
+  final String? returnEvidenceUrl;
+
   // Joined found-item details (for display)
   final String itemCategory;
   final String itemImageUrl;
@@ -35,6 +38,7 @@ class Claim {
     required this.itemCategory,
     required this.itemImageUrl,
     required this.itemLocation,
+    this.returnEvidenceUrl,
   });
 
   factory Claim.fromMap(Map<String, dynamic> map) {
@@ -50,6 +54,7 @@ class Claim {
       quizAttempts: (map['quiz_attempts'] as num?)?.toInt() ?? 0,
       isLocked: map['is_locked'] as bool? ?? false,
       safeZone: map['safe_zone'] as String?,
+      returnEvidenceUrl: map['return_evidence_url'] as String?,
       createdAt: DateTime.tryParse(map['created_at'] as String? ?? '') ??
           DateTime.now(),
       itemCategory: item['category'] as String? ?? 'Item',

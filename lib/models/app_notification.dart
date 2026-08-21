@@ -34,6 +34,10 @@ class AppNotification {
   /// which should also open the Claims → My Claims tab.
   bool get isClaimReturned => type == 'claim_returned';
 
+  /// True when this alert is a new handover chat message, which should open the
+  /// Claims → My Claims tab so the user can reply.
+  bool get isChatMessage => type == 'chat_message';
+
   AppNotification copyWith({bool? isRead}) {
     return AppNotification(
       id: id,
