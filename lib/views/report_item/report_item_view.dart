@@ -21,12 +21,13 @@ class _ReportItemViewState extends State<ReportItemView> {
   final _formKey = GlobalKey<FormState>();
   final _locationCtrl = TextEditingController();
   final _descCtrl = TextEditingController();
-  final _tagsCtrl = TextEditingController();
   final _questionCtrl = TextEditingController();
   final _answerCtrl = TextEditingController();
 
   static const _categories = [
     'Electronics',
+    'Gadgets',
+    'Water Bottles',
     'IDs & Cards',
     'Bags & Wallets',
     'Keys & Lanyards',
@@ -47,6 +48,18 @@ class _ReportItemViewState extends State<ReportItemView> {
       'What is on the lock screen / wallpaper?',
       'What colour is the casing?',
       'What model is it?',
+    ],
+    'Gadgets': [
+      'What type of gadget is it?',
+      'What brand is it?',
+      'What colour is it?',
+      'Any accessories attached (case, strap, charger)?',
+    ],
+    'Water Bottles': [
+      'What brand is it?',
+      'What colour is it?',
+      'What size / capacity is it?',
+      'Any stickers, dents or marks on it?',
     ],
     'IDs & Cards': [
       'What is the full name on the card?',
@@ -89,7 +102,7 @@ class _ReportItemViewState extends State<ReportItemView> {
 
   static const List<String> _areas = [
     // ── Major Buildings ──
-    'Arena',
+    'Arena (TA)',
     'Tun Tan Siew Sin Building (Administration)',
     'Tan Sri Khaw Kai Boh Building',
     'Cyber Centre',
@@ -140,7 +153,8 @@ class _ReportItemViewState extends State<ReportItemView> {
   // academic blocks and DK lecture theatres, which are the common cases).
   static const List<String> _defaultSpots = [
     'Entrance / Lobby',
-    'Classroom / Lab / Hall',
+    'Classroom',
+    'Lab',
     'Corridor / Walkway',
     'Toilet',
     'Staircase / Lift',
@@ -154,7 +168,7 @@ class _ReportItemViewState extends State<ReportItemView> {
     'Yum Yum Park / Cafeteria': ['Seating Area', 'Food Counter', 'Entrance', _otherSpot],
     'The Roofs': ['Seating Area', 'Food Counter', 'Entrance', _otherSpot],
     'Training Restaurant': ['Dining Area', 'Counter', 'Entrance', _otherSpot],
-    'Arena': ['Concourse', 'Hall', 'Student Centre', 'Entrance', 'Toilet', _otherSpot],
+    'Arena (TA)': ['Concourse', 'Hall', 'Classroom', 'Student Centre', 'Entrance', 'Toilet', _otherSpot],
     'Sports Complex': ['Court', 'Gym', 'Field', 'Changing Room', _otherSpot],
     'Swimming Pool': ['Poolside', 'Changing Room', 'Spectator Area', _otherSpot],
     'Football Field': ['Field', 'Spectator Stand', 'Entrance', _otherSpot],
@@ -193,7 +207,6 @@ class _ReportItemViewState extends State<ReportItemView> {
   void dispose() {
     _locationCtrl.dispose();
     _descCtrl.dispose();
-    _tagsCtrl.dispose();
     _questionCtrl.dispose();
     _answerCtrl.dispose();
     super.dispose();
@@ -269,7 +282,7 @@ class _ReportItemViewState extends State<ReportItemView> {
         category: _selectedCategory,
         location: _composedLocation(),
         description: _descCtrl.text,
-        tags: _tagsCtrl.text,
+        tags: '', // tags field removed — kept empty for the existing API/DB
         dateFound: widget.isLost ? null : _dateFound,
         securityQuestion: _resolvedQuestion(),
         securityAnswer: _answerCtrl.text,
@@ -405,16 +418,6 @@ class _ReportItemViewState extends State<ReportItemView> {
     if (description.isNotEmpty && _descCtrl.text.trim().isEmpty) {
       _descCtrl.text = description;
     }
-    _addTag(colorName == 'Unknown' ? null : colorName);
-    _addTag(brand);
-  }
-
-  void _addTag(String? value) {
-    if (value == null || value.trim().isEmpty) return;
-    if (_tagsCtrl.text.toLowerCase().contains(value.toLowerCase())) return;
-    _tagsCtrl.text = _tagsCtrl.text.trim().isEmpty
-        ? value
-        : '${_tagsCtrl.text.trim()}, $value';
   }
 
   /// Medium-tier: the user taps one of the suggested category chips.
@@ -891,16 +894,6 @@ class _ReportItemViewState extends State<ReportItemView> {
             validator: (v) => (v == null || v.trim().isEmpty)
                 ? 'Description is required.'
                 : null,
-          ),
-          const SizedBox(height: 20),
-          _label('Tags (comma separated)'),
-          const SizedBox(height: 8),
-          TextFormField(
-            controller: _tagsCtrl,
-            textInputAction: TextInputAction.done,
-            decoration: _inputDeco(
-                hint: 'e.g. blue, samsung, charger',
-                icon: Icons.label_outline_rounded),
           ),
 
           // Ownership-verification quiz — found items only (FR 5.2)

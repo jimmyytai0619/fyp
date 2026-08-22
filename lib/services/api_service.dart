@@ -10,9 +10,12 @@ import '../models/item_report.dart';
 import '../models/match_result.dart';
 
 /// Base URL of the Python FastAPI AI matching backend (Module 3).
-///   • Android emulator → 10.0.2.2 maps to the host machine's localhost
-///   • Real device      → replace with your PC's LAN IP (e.g. 192.168.1.x:8000)
-const String aiBackendBaseUrl = 'http://10.0.2.2:8000';
+///   • Real phone (current) → your PC's Wi-Fi/LAN IP; phone must be on the same
+///     Wi-Fi, and the backend started with --host 0.0.0.0.
+///   • Android emulator     → use 'http://10.0.2.2:8000' instead.
+/// NOTE: this LAN IP can change when the PC reconnects to Wi-Fi — re-check with
+/// `ipconfig` if AI matching stops working, and rebuild.
+const String aiBackendBaseUrl = 'http://192.168.0.17:8000';
 
 class ApiService {
   final _client = Supabase.instance.client;
@@ -163,13 +166,42 @@ class ApiService {
         .update({'is_returned': true}).eq('id', foundItemId);
   }
 
+  /// Uploads a handover-proof photo to storage and returns its public URL.
+  /// Used as evidence when the finder marks an item returned (FoodPanda-style).
+  Future<String> uploadReturnEvidence(File image, String claimId) async {
+    final ext = image.path.split('.').last;
+    final fileName =
+        'returns/${claimId}_${DateTime.now().millisecondsSinceEpoch}.$ext';
+    await _client.storage.from('found-items').upload(fileName, image);
+    return _client.storage.from('found-items').getPublicUrl(fileName);
+  }
+
   /// FR 5.5 — Marks a claim's handover complete. Runs server-side so it also
-  /// flags the found item returned AND notifies the other party of the return
-  /// (a cross-user notification the client can't write directly under RLS).
+  /// flags the found item returned, stores the proof photo, AND notifies the
+  /// other party (a cross-user notification the client can't write under RLS).
   /// Returns the RPC status: OK, NOT_PARTY, NOT_FOUND, NOT_AUTHENTICATED.
-  Future<String> markReturnedClaim(String claimId) async {
+  Future<String> markReturnedClaim(String claimId, {String? evidenceUrl}) async {
     final res = await _client.rpc('mark_returned', params: {
       'p_claim_id': claimId,
+      'p_evidence_url': evidenceUrl,
+    });
+    return res as String;
+  }
+
+  /// FR 5.6 — Finder generates the one-time handover code for a verified claim.
+  /// Returns the 6-digit code, or a status (NOT_FINDER, NOT_VERIFIED, NOT_FOUND).
+  Future<String> startHandover(String claimId) async {
+    final res =
+        await _client.rpc('start_handover', params: {'p_claim_id': claimId});
+    return res as String;
+  }
+
+  /// FR 5.6 — Claimant presents the handover code (scanned or typed) to confirm
+  /// the two matched parties are together. Returns OK / BAD_CODE / NO_CODE / …
+  Future<String> verifyHandover(String claimId, String code) async {
+    final res = await _client.rpc('verify_handover', params: {
+      'p_claim_id': claimId,
+      'p_code': code,
     });
     return res as String;
   }
@@ -321,6 +353,19 @@ class ApiService {
   }) async {
     final table = isLost ? 'lost_items' : 'found_items';
     await _client.from(table).delete().eq('id', id);
+  }
+
+  /// Closes one of the user's own reports so it stops matching / alerting:
+  /// a lost report is marked resolved, a found item is marked returned.
+  /// Pass [reopen] true to re-activate it.
+  Future<void> resolveReport({
+    required String id,
+    required bool isLost,
+    bool reopen = false,
+  }) async {
+    final table = isLost ? 'lost_items' : 'found_items';
+    final column = isLost ? 'is_resolved' : 'is_returned';
+    await _client.from(table).update({column: !reopen}).eq('id', id);
   }
 
   Future<List<ItemReport>> getMyLostReports() async {

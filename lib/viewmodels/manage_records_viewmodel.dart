@@ -100,6 +100,22 @@ class ManageRecordsViewModel extends ChangeNotifier {
     }
   }
 
+  /// Closes (resolves/returns) or re-opens one of the user's own reports, then
+  /// refreshes so its badge and matching state update.
+  Future<void> resolveRecord({
+    required String id,
+    required bool isLost,
+    bool reopen = false,
+  }) async {
+    try {
+      await ApiService().resolveReport(id: id, isLost: isLost, reopen: reopen);
+      await fetchMyRecords();
+    } catch (e) {
+      debugPrint('[ManageRecordsViewModel] resolveRecord error: $e');
+      throw Exception('Could not update the report. Please try again.');
+    }
+  }
+
   /// Updates a record's editable fields, then refreshes the lists.
   Future<void> updateRecord({
     required String id,
