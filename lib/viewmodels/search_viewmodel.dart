@@ -5,6 +5,7 @@ import 'package:permission_handler/permission_handler.dart';
 
 import '../models/match_result.dart';
 import '../services/api_service.dart';
+import '../services/classification_service.dart';
 
 enum SearchState { idle, picking, loading, results, error }
 
@@ -20,13 +21,7 @@ class SearchViewModel extends ChangeNotifier {
   // Optional category hard-filter for the visual search.
   static const List<String> categories = [
     'Any Category',
-    'Electronics',
-    'IDs & Cards',
-    'Bags & Wallets',
-    'Keys & Lanyards',
-    'Books & Stationery',
-    'Clothing & Accessories',
-    'Other',
+    ...ClassificationService.categories,
   ];
   String _selectedCategory = 'Any Category';
   String get selectedCategory => _selectedCategory;
@@ -91,8 +86,7 @@ class SearchViewModel extends ChangeNotifier {
     }
 
     if (result == false) {
-      _errorMessage =
-          'Permission denied. Please allow access when prompted.';
+      _errorMessage = 'Permission denied. Please allow access when prompted.';
       _setState(SearchState.error);
       return;
     }
@@ -136,7 +130,8 @@ class SearchViewModel extends ChangeNotifier {
     _savingLostReport = true;
     notifyListeners();
     try {
-      await ApiService().reportLostItem(
+      final api = ApiService();
+      final newId = await api.reportLostItem(
         image: _referenceImage,
         category: _selectedCategory == 'Any Category'
             ? 'Other'
@@ -145,6 +140,13 @@ class SearchViewModel extends ChangeNotifier {
         description: 'Saved from AI visual search',
         tags: const [],
       );
+      // Check the newly saved lost report against items that were already
+      // reported found. Reporting remains successful if the AI server is down.
+      try {
+        await api.ingestLostItem(newId);
+      } catch (_) {
+        /* best-effort background matching */
+      }
       _lostReportSaved = true;
       return null;
     } catch (e) {
@@ -161,8 +163,9 @@ class SearchViewModel extends ChangeNotifier {
     try {
       final results = await ApiService().searchByImage(
         _referenceImage!,
-        category:
-            _selectedCategory == 'Any Category' ? null : _selectedCategory,
+        category: _selectedCategory == 'Any Category'
+            ? null
+            : _selectedCategory,
       );
       _searchResults = results
         ..sort((a, b) => b.confidenceScore.compareTo(a.confidenceScore));

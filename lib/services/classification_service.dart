@@ -1,6 +1,8 @@
 import 'dart:io';
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 
+import 'package:flutter/foundation.dart' show debugPrint, kDebugMode;
 import 'package:flutter/painting.dart' show FileImage;
 import 'package:google_mlkit_image_labeling/google_mlkit_image_labeling.dart';
 import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
@@ -71,33 +73,31 @@ class ClassificationResult {
   factory ClassificationResult.unrecognized({
     String colorName = 'Unknown',
     String colorHex = '#9E9E9E',
-  }) =>
-      ClassificationResult(
-        tier: ConfidenceTier.low,
-        category: 'Other',
-        confidence: 0,
-        rawLabel: '',
-        colorName: colorName,
-        colorHex: colorHex,
-        material: null,
-        description: '',
-        suggestions: const [],
-        possibleBrand: null,
-      );
+  }) => ClassificationResult(
+    tier: ConfidenceTier.low,
+    category: 'Other',
+    confidence: 0,
+    rawLabel: '',
+    colorName: colorName,
+    colorHex: colorHex,
+    material: null,
+    description: '',
+    suggestions: const [],
+    possibleBrand: null,
+  );
 }
 
 /// Wraps Google ML Kit image labeling, text recognition (OCR), and dominant
 /// colour extraction. Runs fully on-device. Call [dispose] when the owning
 /// ViewModel is torn down to release the native detectors.
 class ClassificationService {
-  ClassificationService({
-    ImageLabeler? labeler,
-    TextRecognizer? textRecognizer,
-  })  : _labeler = labeler ??
-            ImageLabeler(
-              options: ImageLabelerOptions(confidenceThreshold: labelThreshold),
-            ),
-        _textRecognizer = textRecognizer ?? TextRecognizer();
+  ClassificationService({ImageLabeler? labeler, TextRecognizer? textRecognizer})
+    : _labeler =
+          labeler ??
+          ImageLabeler(
+            options: ImageLabelerOptions(confidenceThreshold: labelThreshold),
+          ),
+      _textRecognizer = textRecognizer ?? TextRecognizer();
 
   final ImageLabeler _labeler;
   final TextRecognizer _textRecognizer;
@@ -124,12 +124,27 @@ class ClassificationService {
     'Keys & Lanyards',
     'Books & Stationery',
     'Clothing & Accessories',
+    'Water Bottles',
     'Other',
   ];
 
   Future<ClassificationResult> classify(File imageFile) async {
     final labels = await _labelImage(imageFile);
-    final (hex, colorName) = await _dominantColor(imageFile);
+    if (kDebugMode) {
+      debugPrint(
+        '[ClassificationService] labels: ${labels.take(10).map((l) => '${l.label} ${(l.confidence * 100).toStringAsFixed(0)}%').join(', ')}',
+      );
+    }
+    var hex = '#9E9E9E';
+    var colorName = 'Unknown';
+    try {
+      final color = await _dominantColor(imageFile);
+      hex = color.$1;
+      colorName = color.$2;
+    } catch (_) {
+      // Colour is a helpful attribute, but it must never cancel a successful
+      // category classification for an unusual image size/orientation.
+    }
     final brand = await _detectBrand(imageFile);
 
     if (labels.isEmpty) {
@@ -143,12 +158,12 @@ class ClassificationService {
     // like "Plastic" or "Object"), we look for the first label that maps to a
     // specific campus category.
     var top = labels.first;
-    var category = _mapToCategory(top.label);
+    var category = mapLabelToCategory(top.label);
 
     if (category == 'Other') {
       for (final l in labels) {
         final labelText = l.label.toLowerCase();
-        final mapped = _mapToCategory(labelText);
+        final mapped = mapLabelToCategory(labelText);
         if (mapped != 'Other') {
           top = l;
           category = mapped;
@@ -157,7 +172,12 @@ class ClassificationService {
       }
     }
 
-    final tier = _tierFor(top.confidence);
+    // A generic label such as "object" can be highly confident without giving
+    // us a trustworthy SmartMatch category. Never auto-fill "Other" solely
+    // because ML Kit was confident about that generic source label.
+    final tier = category == 'Other'
+        ? ConfidenceTier.low
+        : _tierFor(top.confidence);
     final material = _inferMaterial(labels);
     final subFeatures = _inferSubFeatures(labels);
 
@@ -165,13 +185,16 @@ class ClassificationService {
     final seen = <String>{};
     final suggestions = <CategorySuggestion>[];
     for (final l in labels) {
-      final cat = _mapToCategory(l.label);
-      if (seen.add(cat)) {
-        suggestions.add(CategorySuggestion(
-          category: cat,
-          confidence: l.confidence,
-          rawLabel: l.label,
-        ));
+      if (l.confidence < mediumThreshold) continue;
+      final cat = mapLabelToCategory(l.label);
+      if (cat != 'Other' && seen.add(cat)) {
+        suggestions.add(
+          CategorySuggestion(
+            category: cat,
+            confidence: l.confidence,
+            rawLabel: l.label,
+          ),
+        );
       }
       if (suggestions.length >= 3) break;
     }
@@ -212,75 +235,203 @@ class ClassificationService {
   /// OCR: returns the most plausible brand/logo token found on the item, or null.
   Future<String?> _detectBrand(File file) async {
     try {
-      final recognized =
-          await _textRecognizer.processImage(InputImage.fromFile(file));
-      String? best;
+      final recognized = await _textRecognizer.processImage(
+        InputImage.fromFile(file),
+      );
       for (final block in recognized.blocks) {
         for (final line in block.lines) {
           final t = line.text.trim();
-          // Heuristic: short, mostly-alphabetic tokens read like brand names.
-          final letters = t.replaceAll(RegExp(r'[^A-Za-z]'), '');
-          if (t.length >= 2 &&
-              t.length <= 15 &&
-              letters.length >= t.length * 0.6) {
-            if (best == null || t.length > best.length) best = t;
+          final normalized = t
+              .toLowerCase()
+              .replaceAll(RegExp(r'[^a-z0-9]+'), ' ')
+              .trim();
+          for (final entry in _knownBrands.entries) {
+            final pattern = RegExp(
+              '(^| )${RegExp.escape(entry.key)}( |\$)',
+              caseSensitive: false,
+            );
+            if (pattern.hasMatch(normalized)) {
+              return entry.value;
+            }
           }
         }
       }
-      return best;
+      // Unknown OCR text is deliberately not guessed as a brand. This avoids
+      // surfacing phrases such as "MAIN LIBRARY" or "MADE IN CHINA".
+      return null;
     } catch (_) {
       return null; // OCR is best-effort
     }
   }
 
   /// Folds a fine-grained ML Kit label into one of SmartMatch's standardized categories.
-  String _mapToCategory(String mlLabel) {
-    final label = mlLabel.toLowerCase();
+  static String mapLabelToCategory(String mlLabel) {
+    final label = mlLabel
+        .toLowerCase()
+        .replaceAll(RegExp(r'[^a-z0-9]+'), ' ')
+        .trim();
 
     const electronics = [
-      'phone', 'mobile', 'smartphone', 'iphone', 'android', 'laptop',
-      'computer', 'tablet', 'ipad', 'headphone', 'earphone', 'earbud',
-      'airpod', 'charger', 'adapter', 'camera', 'watch', 'smartwatch',
-      'mouse', 'keyboard', 'cable', 'cord', 'television', 'speaker',
-      'power bank', 'powerbank', 'kindle', 'gadget', 'microphone', 'monitor',
-      'usb', 'pendrive', 'flash drive', 'electronic', 'remote', 'controller',
-      'console', 'router', 'drone',
+      'phone',
+      'mobile',
+      'smartphone',
+      'iphone',
+      'android',
+      'laptop',
+      'computer',
+      'tablet',
+      'ipad',
+      'headphone',
+      'earphone',
+      'earbud',
+      'airpod',
+      'charger',
+      'adapter',
+      'camera',
+      'watch',
+      'smartwatch',
+      'mouse',
+      'keyboard',
+      'cable',
+      'cord',
+      'television',
+      'speaker',
+      'power bank',
+      'powerbank',
+      'kindle',
+      'gadget',
+      'microphone',
+      'monitor',
+      'usb',
+      'pendrive',
+      'flash drive',
+      'electronic',
+      'remote',
+      'controller',
+      'console',
+      'router',
+      'drone',
     ];
 
     const idsAndCards = [
-      'card', 'id', 'identity', 'passport', 'license', 'document', 'paper',
-      'ticket', 'badge', 'credit card', 'debit card', 'bank card', 'membership',
-      'smartcard', 'student id',
+      'card',
+      'id',
+      'identity',
+      'passport',
+      'license',
+      'ticket',
+      'badge',
+      'credit card',
+      'debit card',
+      'bank card',
+      'membership',
+      'smartcard',
+      'student id',
     ];
 
     const bagsAndWallets = [
-      'bag', 'backpack', 'wallet', 'purse', 'handbag', 'luggage', 'pouch',
-      'satchel', 'briefcase', 'suitcase', 'tote', 'knapsack', 'clutch',
+      'bag',
+      'backpack',
+      'wallet',
+      'purse',
+      'handbag',
+      'luggage',
+      'pouch',
+      'satchel',
+      'briefcase',
+      'suitcase',
+      'tote',
+      'knapsack',
+      'clutch',
     ];
 
     const keysAndLanyards = [
-      'key', 'lanyard', 'keychain', 'car key', 'house key', 'fob',
+      'key',
+      'lanyard',
+      'keychain',
+      'car key',
+      'house key',
+      'fob',
     ];
 
     const booksAndStationery = [
-      'book', 'notebook', 'textbook', 'calculator', 'pen', 'pencil', 'stationery',
-      'folder', 'binder', 'ruler', 'eraser', 'pencil case', 'journal', 'clipboard',
+      'book',
+      'notebook',
+      'textbook',
+      'calculator',
+      'pen',
+      'pencil',
+      'stationery',
+      'folder',
+      'binder',
+      'ruler',
+      'eraser',
+      'pencil case',
+      'journal',
+      'clipboard',
+      'paper',
+      'document',
     ];
 
     const clothingAndAccessories = [
-      'umbrella', 'glasses', 'sunglasses', 'jewelry', 'ring',
-      'necklace', 'bracelet', 'hat', 'cap', 'scarf', 'glove', 'water bottle',
-      'bottle', 'tumbler', 'flask', 'clothing', 'shirt', 'jacket', 'coat',
-      'shoe', 'sneaker', 'sandal', 'socks', 'belt',
+      'umbrella',
+      'glasses',
+      'sunglasses',
+      'jewelry',
+      'ring',
+      'necklace',
+      'bracelet',
+      'hat',
+      'scarf',
+      'glove',
+      'clothing',
+      'shirt',
+      'jacket',
+      'coat',
+      'shoe',
+      'sneaker',
+      'sandal',
+      'socks',
+      'belt',
     ];
 
-    bool hit(List<String> keys) => keys.any(label.contains);
+    const waterBottles = [
+      'water bottle',
+      'bottle',
+      'tumbler',
+      'flask',
+      'mug',
+      'cup',
+      'thermos',
+      'drinkware',
+      'tableware',
+      'kitchenware',
+    ];
+
+    // Match complete words/phrases only. Substring matching made labels such as
+    // "video", "solid", "cardboard", and "capsule" hit id/card/cap.
+    bool hit(List<String> keys) => keys.any((key) {
+      final normalizedKey = key
+          .toLowerCase()
+          .replaceAll(RegExp(r'[^a-z0-9]+'), ' ')
+          .trim();
+      return RegExp(
+        '(^| )${RegExp.escape(normalizedKey)}( |\$)',
+      ).hasMatch(label);
+    });
 
     if (hit(electronics)) return 'Electronics';
     if (hit(idsAndCards)) return 'IDs & Cards';
+    if (hit(waterBottles)) return 'Water Bottles'; // Move up!
     if (hit(bagsAndWallets)) return 'Bags & Wallets';
     if (hit(keysAndLanyards)) return 'Keys & Lanyards';
     if (hit(booksAndStationery)) return 'Books & Stationery';
+
+    // Handle "cap" specially to avoid "Bottle cap" -> "Clothing"
+    if (hit(const ['cap']) && !hit(const ['bottle'])) {
+      return 'Clothing & Accessories';
+    }
+
     if (hit(clothingAndAccessories)) return 'Clothing & Accessories';
 
     return 'Other';
@@ -292,9 +443,22 @@ class ClassificationService {
   /// Looks for a material keyword among the returned labels (best-effort).
   String? _inferMaterial(List<ImageLabel> labels) {
     const materials = [
-      'leather', 'metal', 'plastic', 'fabric', 'denim', 'wood', 'cotton',
-      'rubber', 'glass', 'paper', 'wool', 'silk', 'polyester', 'nylon',
-      'canvas', 'ceramic',
+      'leather',
+      'metal',
+      'plastic',
+      'fabric',
+      'denim',
+      'wood',
+      'cotton',
+      'rubber',
+      'glass',
+      'paper',
+      'wool',
+      'silk',
+      'polyester',
+      'nylon',
+      'canvas',
+      'ceramic',
     ];
     for (final l in labels) {
       final t = l.label.toLowerCase();
@@ -353,8 +517,30 @@ class ClassificationService {
   }
 
   Future<(String, String)> _dominantColor(File file) async {
+    final codec = await ui.instantiateImageCodec(await file.readAsBytes());
+    final frame = await codec.getNextFrame();
+    final decoded = frame.image;
+    final imageSize = ui.Size(
+      decoded.width.toDouble(),
+      decoded.height.toDouble(),
+    );
+    decoded.dispose();
+    codec.dispose();
+
+    final cropWidth = imageSize.width * 0.50;
+    final cropHeight = imageSize.height * 0.50;
+    final centerRegion = ui.Rect.fromLTWH(
+      (imageSize.width - cropWidth) / 2,
+      (imageSize.height - cropHeight) / 2,
+      cropWidth,
+      cropHeight,
+    );
     final palette = await PaletteGenerator.fromImageProvider(
       FileImage(file),
+      size: imageSize,
+      // Lost-and-found photos normally place the item near the middle. Sampling
+      // the central half reduces the influence of tables, floors, and walls.
+      region: centerRegion,
       maximumColorCount: 12,
     );
 
@@ -389,7 +575,7 @@ class ClassificationService {
       // boost by saturation (so a coloured swatch beats a neutral one)
       // penalize very dark colors (v < 0.2) to avoid shadows/background being picked as "Black"
       double score = sw.population * (0.35 + 0.65 * s);
-      if (v < 0.2) score *= 0.1; 
+      if (v < 0.2) score *= 0.1;
 
       if (score > bestScore) {
         bestScore = score;
@@ -503,6 +689,32 @@ class ClassificationService {
     'Magenta': 0xC71585,
   };
 
+  /// Conservative OCR allow-list. It is better to omit an unknown brand than
+  /// to present arbitrary packaging/location text as a confident brand guess.
+  static const Map<String, String> _knownBrands = {
+    'acer': 'Acer',
+    'adidas': 'Adidas',
+    'apple': 'Apple',
+    'asus': 'ASUS',
+    'casio': 'Casio',
+    'dell': 'Dell',
+    'huawei': 'Huawei',
+    'hydro flask': 'Hydro Flask',
+    'jbl': 'JBL',
+    'lenovo': 'Lenovo',
+    'logitech': 'Logitech',
+    'nike': 'Nike',
+    'oppo': 'OPPO',
+    'puma': 'Puma',
+    'samsung': 'Samsung',
+    'sony': 'Sony',
+    'thermos': 'Thermos',
+    'tupperware': 'Tupperware',
+    'uniqlo': 'Uniqlo',
+    'vivo': 'vivo',
+    'xiaomi': 'Xiaomi',
+  };
+
   Future<void> dispose() async {
     await _labeler.close();
     await _textRecognizer.close();
@@ -511,15 +723,15 @@ class ClassificationService {
 
 extension on ClassificationResult {
   ClassificationResult copyWithBrand(String? brand) => ClassificationResult(
-        tier: tier,
-        category: category,
-        confidence: confidence,
-        rawLabel: rawLabel,
-        colorName: colorName,
-        colorHex: colorHex,
-        material: material,
-        description: description,
-        suggestions: suggestions,
-        possibleBrand: brand,
-      );
+    tier: tier,
+    category: category,
+    confidence: confidence,
+    rawLabel: rawLabel,
+    colorName: colorName,
+    colorHex: colorHex,
+    material: material,
+    description: description,
+    suggestions: suggestions,
+    possibleBrand: brand,
+  );
 }

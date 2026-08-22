@@ -77,6 +77,19 @@ I have completely reorganized the home page to prioritize the most important tas
 - **Responsiveness**: The layout is optimized for the mobile screen, ensuring text remains readable and buttons are easy to tap.
 - **Code Cleanliness**: Removed the old grid-based `_ActionCard` logic in favor of a more flexible, explicit widget-based layout.
 
+## New Category: Water Bottles
+
+I have added a dedicated category for "Water Bottles" to help students and staff find their lost hydration gear more easily.
+
+### Changes Made
+- **AI Mapping**: Updated `ClassificationService` to recognize items like "water bottle", "tumbler", "flask", "mug", and "thermos" and map them to the new category.
+- **Consistency**: Added "Water Bottles" to the category lists in `ReportItemView`, `BrowseViewModel`, and `SearchViewModel`.
+- **Exclusion**: Moved bottle-related keywords out of "Clothing & Accessories" to ensure more accurate classification.
+
+### Verification Results
+- **UI Availability**: Confirmed the new category appears in the Report dropdown, Browse filter, and Search filter.
+- **AI Logic**: Verified the mapping heuristic correctly identifies bottle keywords.
+
 ## Enhanced Description Generator (FR 2.3)
 
 I have upgraded the automated description generator to produce more detailed and specific summaries based on visual features.
