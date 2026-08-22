@@ -10,12 +10,12 @@ import '../models/item_report.dart';
 import '../models/match_result.dart';
 
 /// Base URL of the Python FastAPI AI matching backend (Module 3).
-///   • Real phone (current) → your PC's Wi-Fi/LAN IP; phone must be on the same
-///     Wi-Fi, and the backend started with --host 0.0.0.0.
-///   • Android emulator     → use 'http://10.0.2.2:8000' instead.
-/// NOTE: this LAN IP can change when the PC reconnects to Wi-Fi — re-check with
-/// `ipconfig` if AI matching stops working, and rebuild.
-const String aiBackendBaseUrl = 'http://192.168.0.17:8000';
+/// Defaults to the Android emulator's host alias. For a physical phone, build
+/// with `--dart-define=AI_BACKEND_URL=http://<PC-LAN-IP>:8000`.
+const String aiBackendBaseUrl = String.fromEnvironment(
+  'AI_BACKEND_URL',
+  defaultValue: 'http://10.0.2.2:8000',
+);
 
 class ApiService {
   final _client = Supabase.instance.client;
@@ -40,19 +40,22 @@ class ApiService {
 
     await _client.storage.from('found-items').upload(fileName, image);
 
-    final imageUrl =
-        _client.storage.from('found-items').getPublicUrl(fileName);
+    final imageUrl = _client.storage.from('found-items').getPublicUrl(fileName);
 
-    final inserted = await _client.from('found_items').insert({
-      'user_id': userId,
-      'category': category,
-      'location_found': locationFound,
-      'description': description,
-      'tags': tags,
-      'image_url': imageUrl,
-      'security_question': securityQuestion,
-      'created_at': DateTime.now().toIso8601String(),
-    }).select('id').single();
+    final inserted = await _client
+        .from('found_items')
+        .insert({
+          'user_id': userId,
+          'category': category,
+          'location_found': locationFound,
+          'description': description,
+          'tags': tags,
+          'image_url': imageUrl,
+          'security_question': securityQuestion,
+          'created_at': DateTime.now().toIso8601String(),
+        })
+        .select('id')
+        .single();
 
     final id = inserted['id'] as String;
 
@@ -104,10 +107,10 @@ class ApiService {
     required String itemId,
     required String answer,
   }) async {
-    final res = await _client.rpc('submit_claim', params: {
-      'p_item_id': itemId,
-      'p_answer': answer,
-    });
+    final res = await _client.rpc(
+      'submit_claim',
+      params: {'p_item_id': itemId, 'p_answer': answer},
+    );
     return res as String;
   }
 
@@ -151,10 +154,10 @@ class ApiService {
   /// notification the client can't write directly under RLS). Returns the RPC
   /// status: OK, NOT_FINDER, NOT_FOUND, BAD_DECISION, NOT_AUTHENTICATED.
   Future<String> decideClaim(String claimId, String decision) async {
-    final res = await _client.rpc('decide_claim', params: {
-      'p_claim_id': claimId,
-      'p_decision': decision,
-    });
+    final res = await _client.rpc(
+      'decide_claim',
+      params: {'p_claim_id': claimId, 'p_decision': decision},
+    );
     return res as String;
   }
 
@@ -163,7 +166,8 @@ class ApiService {
   Future<void> markFoundItemReturned(String foundItemId) async {
     await _client
         .from('found_items')
-        .update({'is_returned': true}).eq('id', foundItemId);
+        .update({'is_returned': true})
+        .eq('id', foundItemId);
   }
 
   /// Uploads a handover-proof photo to storage and returns its public URL.
@@ -180,29 +184,34 @@ class ApiService {
   /// flags the found item returned, stores the proof photo, AND notifies the
   /// other party (a cross-user notification the client can't write under RLS).
   /// Returns the RPC status: OK, NOT_PARTY, NOT_FOUND, NOT_AUTHENTICATED.
-  Future<String> markReturnedClaim(String claimId, {String? evidenceUrl}) async {
-    final res = await _client.rpc('mark_returned', params: {
-      'p_claim_id': claimId,
-      'p_evidence_url': evidenceUrl,
-    });
+  Future<String> markReturnedClaim(
+    String claimId, {
+    String? evidenceUrl,
+  }) async {
+    final res = await _client.rpc(
+      'mark_returned',
+      params: {'p_claim_id': claimId, 'p_evidence_url': evidenceUrl},
+    );
     return res as String;
   }
 
   /// FR 5.6 — Finder generates the one-time handover code for a verified claim.
   /// Returns the 6-digit code, or a status (NOT_FINDER, NOT_VERIFIED, NOT_FOUND).
   Future<String> startHandover(String claimId) async {
-    final res =
-        await _client.rpc('start_handover', params: {'p_claim_id': claimId});
+    final res = await _client.rpc(
+      'start_handover',
+      params: {'p_claim_id': claimId},
+    );
     return res as String;
   }
 
   /// FR 5.6 — Claimant presents the handover code (scanned or typed) to confirm
   /// the two matched parties are together. Returns OK / BAD_CODE / NO_CODE / …
   Future<String> verifyHandover(String claimId, String code) async {
-    final res = await _client.rpc('verify_handover', params: {
-      'p_claim_id': claimId,
-      'p_code': code,
-    });
+    final res = await _client.rpc(
+      'verify_handover',
+      params: {'p_claim_id': claimId, 'p_code': code},
+    );
     return res as String;
   }
 
@@ -281,15 +290,19 @@ class ApiService {
       imageUrl = _client.storage.from('found-items').getPublicUrl(fileName);
     }
 
-    final inserted = await _client.from('lost_items').insert({
-      'user_id': userId,
-      'category': category,
-      'location_found': locationLost,
-      'description': description,
-      'tags': tags,
-      'image_url': imageUrl,
-      'created_at': DateTime.now().toIso8601String(),
-    }).select('id').single();
+    final inserted = await _client
+        .from('lost_items')
+        .insert({
+          'user_id': userId,
+          'category': category,
+          'location_found': locationLost,
+          'description': description,
+          'tags': tags,
+          'image_url': imageUrl,
+          'created_at': DateTime.now().toIso8601String(),
+        })
+        .select('id')
+        .single();
 
     return inserted['id'] as String;
   }
@@ -313,11 +326,14 @@ class ApiService {
     required String description,
   }) async {
     final table = isLost ? 'lost_items' : 'found_items';
-    await _client.from(table).update({
-      'category': category,
-      'location_found': location,
-      'description': description,
-    }).eq('id', id);
+    await _client
+        .from(table)
+        .update({
+          'category': category,
+          'location_found': location,
+          'description': description,
+        })
+        .eq('id', id);
   }
 
   /// Returns a map of found_item_id → the most-advanced claim status, for the
@@ -347,10 +363,7 @@ class ApiService {
 
   /// Deletes one of the current user's own reports. RLS ensures a user can
   /// only delete rows they own.
-  Future<void> deleteReport({
-    required String id,
-    required bool isLost,
-  }) async {
+  Future<void> deleteReport({required String id, required bool isLost}) async {
     final table = isLost ? 'lost_items' : 'found_items';
     await _client.from(table).delete().eq('id', id);
   }
@@ -409,8 +422,9 @@ class ApiService {
         .order('created_at', ascending: false);
 
     return (rows as List)
-        .map((r) =>
-            AppNotification.fromMap(Map<String, dynamic>.from(r as Map)))
+        .map(
+          (r) => AppNotification.fromMap(Map<String, dynamic>.from(r as Map)),
+        )
         .toList();
   }
 
@@ -455,8 +469,8 @@ class ApiService {
 
     final rows = (category != null && category != 'All')
         ? await baseQuery
-            .eq('category', category)
-            .order('created_at', ascending: false)
+              .eq('category', category)
+              .order('created_at', ascending: false)
         : await baseQuery.order('created_at', ascending: false);
 
     return (rows as List)
@@ -466,7 +480,7 @@ class ApiService {
 
   /// Sends the reference image to the FastAPI MobileNetV2 backend, which
   /// extracts a 1280-dim feature vector, runs cosine similarity against every
-  /// found item, and returns matches scoring at or above the 50% threshold,
+  /// found item, and returns matches scoring at or above 50/100,
   /// ranked highest-first (FR 3.1–3.5).
   Future<List<MatchResult>> searchByImage(
     File imageFile, {
@@ -487,14 +501,16 @@ class ApiService {
       streamed = await request.send().timeout(const Duration(seconds: 60));
     } catch (e) {
       throw Exception(
-          'Could not reach the AI server. Make sure the backend is running.');
+        'Could not reach the AI server. Make sure the backend is running.',
+      );
     }
 
     final response = await http.Response.fromStream(streamed);
 
     if (response.statusCode != 200) {
       throw Exception(
-          'AI search failed (${response.statusCode}). Please try again.');
+        'AI search failed (${response.statusCode}). Please try again.',
+      );
     }
 
     final decoded = jsonDecode(response.body) as Map<String, dynamic>;

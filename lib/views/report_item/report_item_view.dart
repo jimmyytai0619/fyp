@@ -24,19 +24,8 @@ class _ReportItemViewState extends State<ReportItemView> {
   final _questionCtrl = TextEditingController();
   final _answerCtrl = TextEditingController();
 
-  static const _categories = [
-    'Electronics',
-    'Gadgets',
-    'Water Bottles',
-    'IDs & Cards',
-    'Bags & Wallets',
-    'Keys & Lanyards',
-    'Books & Stationery',
-    'Clothing & Accessories',
-    'Water Bottles',
-    'Other',
-  ];
-  String _selectedCategory = 'Electronics';
+  static const _categories = ClassificationService.categories;
+  String? _selectedCategory;
 
   // ── Category-specific ownership questions (FR 5.2) ──────────────────────────
   static const _customQuestion = '__custom__';
@@ -48,12 +37,6 @@ class _ReportItemViewState extends State<ReportItemView> {
       'What is on the lock screen / wallpaper?',
       'What colour is the casing?',
       'What model is it?',
-    ],
-    'Gadgets': [
-      'What type of gadget is it?',
-      'What brand is it?',
-      'What colour is it?',
-      'Any accessories attached (case, strap, charger)?',
     ],
     'Water Bottles': [
       'What brand is it?',
@@ -86,14 +69,12 @@ class _ReportItemViewState extends State<ReportItemView> {
       'What size is it?',
       'What colour is it?',
     ],
-    'Other': [
-      'Describe a unique feature of the item.',
-      'What colour is it?',
-    ],
+    'Other': ['Describe a unique feature of the item.', 'What colour is it?'],
   };
 
   List<String> get _currentQuestions =>
-      _questionsByCategory[_selectedCategory] ?? _questionsByCategory['Other']!;
+      _questionsByCategory[_selectedCategory ?? 'Other'] ??
+      _questionsByCategory['Other']!;
 
   // ── Cascading location (Building → specific spot) ───────────────────────────
   static const _otherSpot = 'Other (specify)';
@@ -162,21 +143,68 @@ class _ReportItemViewState extends State<ReportItemView> {
   ];
 
   static const Map<String, List<String>> _spotsByArea = {
-    'Main Library': ['Ground Floor', 'Level 1', 'Level 2', 'Study Area', 'Help Desk', 'Discussion Room', _otherSpot],
-    'Postgraduate Library': ['Reading Area', 'Study Carrel', 'Help Desk', 'Discussion Room', _otherSpot],
-    'The Red Bricks Cafeteria': ['Seating Area', 'Food Counter', 'Entrance', _otherSpot],
-    'Yum Yum Park / Cafeteria': ['Seating Area', 'Food Counter', 'Entrance', _otherSpot],
+    'Main Library': [
+      'Ground Floor',
+      'Level 1',
+      'Level 2',
+      'Study Area',
+      'Help Desk',
+      'Discussion Room',
+      _otherSpot,
+    ],
+    'Postgraduate Library': [
+      'Reading Area',
+      'Study Carrel',
+      'Help Desk',
+      'Discussion Room',
+      _otherSpot,
+    ],
+    'The Red Bricks Cafeteria': [
+      'Seating Area',
+      'Food Counter',
+      'Entrance',
+      _otherSpot,
+    ],
+    'Yum Yum Park / Cafeteria': [
+      'Seating Area',
+      'Food Counter',
+      'Entrance',
+      _otherSpot,
+    ],
     'The Roofs': ['Seating Area', 'Food Counter', 'Entrance', _otherSpot],
     'Training Restaurant': ['Dining Area', 'Counter', 'Entrance', _otherSpot],
-    'Arena (TA)': ['Concourse', 'Hall', 'Classroom', 'Student Centre', 'Entrance', 'Toilet', _otherSpot],
+    'Arena (TA)': [
+      'Concourse',
+      'Hall',
+      'Classroom',
+      'Student Centre',
+      'Entrance',
+      'Toilet',
+      _otherSpot,
+    ],
     'Sports Complex': ['Court', 'Gym', 'Field', 'Changing Room', _otherSpot],
-    'Swimming Pool': ['Poolside', 'Changing Room', 'Spectator Area', _otherSpot],
+    'Swimming Pool': [
+      'Poolside',
+      'Changing Room',
+      'Spectator Area',
+      _otherSpot,
+    ],
     'Football Field': ['Field', 'Spectator Stand', 'Entrance', _otherSpot],
     'Basketball Courts': ['Court', 'Bench / Side', _otherSpot],
     'Tennis Courts': ['Court', 'Bench / Side', _otherSpot],
     'Student Hostel': ['Room', 'Common Area', 'Lobby', 'Corridor', _otherSpot],
-    'Car Park': ['Open-Air Car Park', 'Covered Car Park', 'Motorcycle Bay', _otherSpot],
-    'Guard House / Campus Gate': ['Guard House', 'Arena Gate', 'Main Gate', _otherSpot],
+    'Car Park': [
+      'Open-Air Car Park',
+      'Covered Car Park',
+      'Motorcycle Bay',
+      _otherSpot,
+    ],
+    'Guard House / Campus Gate': [
+      'Guard House',
+      'Arena Gate',
+      'Main Gate',
+      _otherSpot,
+    ],
     'Other': [_otherSpot],
   };
 
@@ -279,7 +307,7 @@ class _ReportItemViewState extends State<ReportItemView> {
     try {
       await vm.submitReport(
         isLost: widget.isLost,
-        category: _selectedCategory,
+        category: _selectedCategory ?? '',
         location: _composedLocation(),
         description: _descCtrl.text,
         tags: '', // tags field removed — kept empty for the existing API/DB
@@ -289,12 +317,14 @@ class _ReportItemViewState extends State<ReportItemView> {
       );
 
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(_snackbar(
-        widget.isLost
-            ? 'Lost item report submitted!'
-            : 'Item added to database!',
-        isError: false,
-      ));
+      ScaffoldMessenger.of(context).showSnackBar(
+        _snackbar(
+          widget.isLost
+              ? 'Lost item report submitted!'
+              : 'Item added to database!',
+          isError: false,
+        ),
+      );
 
       if (widget.isLost) {
         // Show the user their newly saved lost report in Manage My Records.
@@ -311,32 +341,31 @@ class _ReportItemViewState extends State<ReportItemView> {
       }
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(_snackbar(
-        e.toString().replaceFirst('Exception: ', ''),
-        isError: true,
-      ));
+      ScaffoldMessenger.of(context).showSnackBar(
+        _snackbar(e.toString().replaceFirst('Exception: ', ''), isError: true),
+      );
     }
   }
 
   SnackBar _snackbar(String msg, {required bool isError}) => SnackBar(
-        content: Row(
-          children: [
-            Icon(
-              isError ? Icons.error_outline : Icons.check_circle_outline,
-              color: Colors.white,
-              size: 20,
-            ),
-            const SizedBox(width: 10),
-            Expanded(child: Text(msg)),
-          ],
+    content: Row(
+      children: [
+        Icon(
+          isError ? Icons.error_outline : Icons.check_circle_outline,
+          color: Colors.white,
+          size: 20,
         ),
-        backgroundColor:
-            isError ? const Color(0xFFD32F2F) : const Color(0xFF2E7D32),
-        behavior: SnackBarBehavior.floating,
-        shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      );
+        const SizedBox(width: 10),
+        Expanded(child: Text(msg)),
+      ],
+    ),
+    backgroundColor: isError
+        ? const Color(0xFFD32F2F)
+        : const Color(0xFF2E7D32),
+    behavior: SnackBarBehavior.floating,
+    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+    margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+  );
 
   // ── Build ─────────────────────────────────────────────────────────────────
 
@@ -402,15 +431,25 @@ class _ReportItemViewState extends State<ReportItemView> {
     final c = vm.classification;
     if (c == null || !mounted) return;
     if (c.isHigh) {
-      setState(() =>
-          _fillFromAi(c.category, c.description, c.colorName, c.possibleBrand));
+      setState(
+        () => _fillFromAi(
+          c.category,
+          c.description,
+          c.colorName,
+          c.possibleBrand,
+        ),
+      );
     }
     // medium/low: wait for the user (chips / manual dropdown)
   }
 
   /// Commits an AI category + description into the form fields.
   void _fillFromAi(
-      String category, String description, String colorName, String? brand) {
+    String category,
+    String description,
+    String colorName,
+    String? brand,
+  ) {
     if (ClassificationService.categories.contains(category)) {
       _selectedCategory = category;
       _selectedQuestion = null; // question list depends on category
@@ -423,9 +462,14 @@ class _ReportItemViewState extends State<ReportItemView> {
   /// Medium-tier: the user taps one of the suggested category chips.
   void _chooseSuggestion(ReportItemViewModel vm, CategorySuggestion sug) {
     final c = vm.classification;
-    setState(() => _fillFromAi(
-        sug.category, c?.description ?? '', c?.colorName ?? 'Unknown',
-        c?.possibleBrand));
+    setState(
+      () => _fillFromAi(
+        sug.category,
+        c?.description ?? '',
+        c?.colorName ?? 'Unknown',
+        c?.possibleBrand,
+      ),
+    );
   }
 
   Widget _aiSuggestionSection(ReportItemViewModel vm) {
@@ -433,15 +477,20 @@ class _ReportItemViewState extends State<ReportItemView> {
       return _infoCard(
         const Color(0xFFDDE3F0),
         Colors.white,
-        const Row(children: [
-          SizedBox(
+        const Row(
+          children: [
+            SizedBox(
               width: 18,
               height: 18,
-              child: CircularProgressIndicator(strokeWidth: 2)),
-          SizedBox(width: 12),
-          Text('Analysing image on-device…',
-              style: TextStyle(fontWeight: FontWeight.w600)),
-        ]),
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+            SizedBox(width: 12),
+            Text(
+              'Analysing image on-device…',
+              style: TextStyle(fontWeight: FontWeight.w600),
+            ),
+          ],
+        ),
       );
     }
     final c = vm.classification;
@@ -456,33 +505,43 @@ class _ReportItemViewState extends State<ReportItemView> {
     }
   }
 
-  Widget _cardHeader(IconData icon, String title, Color accent,
-      {double? confidence}) {
+  Widget _cardHeader(
+    IconData icon,
+    String title,
+    Color accent, {
+    double? confidence,
+  }) {
     return Row(
       children: [
         Icon(icon, color: accent, size: 20),
         const SizedBox(width: 8),
         Expanded(
-          child: Text(title,
-              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
+          child: Text(
+            title,
+            style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+          ),
         ),
         if (confidence != null && confidence > 0)
-          Text('${(confidence * 100).toStringAsFixed(0)}%',
-              style: TextStyle(
-                  color: accent, fontWeight: FontWeight.w700, fontSize: 13)),
+          Text(
+            'Label ${(confidence * 100).toStringAsFixed(0)}%',
+            style: TextStyle(
+              color: accent,
+              fontWeight: FontWeight.w700,
+              fontSize: 13,
+            ),
+          ),
       ],
     );
   }
 
   List<Widget> _attributeChips(dynamic c) => [
-        _chip(Icons.category_outlined, c.category),
-        if (c.colorName != 'Unknown')
-          _chip(Icons.palette_outlined, c.colorName, swatchHex: c.colorHex),
-        if (c.material != null)
-          _chip(Icons.texture_rounded, c.material as String),
-        if (c.possibleBrand != null)
-          _chip(Icons.sell_outlined, 'Brand? ${c.possibleBrand}'),
-      ];
+    _chip(Icons.category_outlined, c.category),
+    if (c.colorName != 'Unknown')
+      _chip(Icons.palette_outlined, c.colorName, swatchHex: c.colorHex),
+    if (c.material != null) _chip(Icons.texture_rounded, c.material as String),
+    if (c.possibleBrand != null)
+      _chip(Icons.sell_outlined, 'Brand? ${c.possibleBrand}'),
+  ];
 
   // HIGH (>=75%) — auto-filled, green.
   Widget _highCard(dynamic c) {
@@ -493,9 +552,12 @@ class _ReportItemViewState extends State<ReportItemView> {
       Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _cardHeader(Icons.auto_awesome_rounded, 'AI Suggestion · Auto-filled',
-              accent,
-              confidence: c.confidence as double),
+          _cardHeader(
+            Icons.auto_awesome_rounded,
+            'AI Suggestion · Auto-filled',
+            accent,
+            confidence: c.confidence as double,
+          ),
           const SizedBox(height: 10),
           Wrap(spacing: 8, runSpacing: 8, children: _attributeChips(c)),
           const SizedBox(height: 10),
@@ -503,7 +565,10 @@ class _ReportItemViewState extends State<ReportItemView> {
             'Category and description filled automatically. You can edit any '
             'field below before submitting.',
             style: TextStyle(
-                fontSize: 12, color: Colors.green.shade900, height: 1.4),
+              fontSize: 12,
+              color: Colors.green.shade900,
+              height: 1.4,
+            ),
           ),
         ],
       ),
@@ -513,17 +578,20 @@ class _ReportItemViewState extends State<ReportItemView> {
   // MEDIUM (50-75%) — pick from suggestions, blue.
   Widget _mediumCard(ReportItemViewModel vm, dynamic c) {
     const accent = _primaryBlue;
-    final List<CategorySuggestion> sugs =
-        (c.suggestions as List).cast<CategorySuggestion>();
+    final List<CategorySuggestion> sugs = (c.suggestions as List)
+        .cast<CategorySuggestion>();
     return _infoCard(
       accent.withValues(alpha: 0.4),
       const Color(0xFFE3F2FD),
       Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _cardHeader(Icons.help_outline_rounded,
-              'Not fully sure — pick a category', accent,
-              confidence: c.confidence as double),
+          _cardHeader(
+            Icons.help_outline_rounded,
+            'Not fully sure — pick a category',
+            accent,
+            confidence: c.confidence as double,
+          ),
           const SizedBox(height: 10),
           Wrap(
             spacing: 8,
@@ -531,25 +599,37 @@ class _ReportItemViewState extends State<ReportItemView> {
             children: [
               for (final sug in sugs)
                 _suggestionActionChip(
-                  '${sug.category} · ${(sug.confidence * 100).toStringAsFixed(0)}%',
+                  '${sug.category} · label ${(sug.confidence * 100).toStringAsFixed(0)}%',
                   () => _chooseSuggestion(vm, sug),
                 ),
             ],
           ),
           if (c.colorName != 'Unknown' || c.possibleBrand != null) ...[
             const SizedBox(height: 10),
-            Wrap(spacing: 8, runSpacing: 8, children: [
-              if (c.colorName != 'Unknown')
-                _chip(Icons.palette_outlined, c.colorName as String,
-                    swatchHex: c.colorHex as String),
-              if (c.possibleBrand != null)
-                _chip(Icons.sell_outlined, 'Brand? ${c.possibleBrand}'),
-            ]),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                if (c.colorName != 'Unknown')
+                  _chip(
+                    Icons.palette_outlined,
+                    c.colorName as String,
+                    swatchHex: c.colorHex as String,
+                  ),
+                if (c.possibleBrand != null)
+                  _chip(Icons.sell_outlined, 'Brand? ${c.possibleBrand}'),
+              ],
+            ),
           ],
           const SizedBox(height: 8),
-          Text('Tap a suggestion to fill the form, or choose manually below.',
-              style: TextStyle(
-                  fontSize: 12, color: Colors.blue.shade900, height: 1.4)),
+          Text(
+            'Tap a suggestion to fill the form, or choose manually below.',
+            style: TextStyle(
+              fontSize: 12,
+              color: Colors.blue.shade900,
+              height: 1.4,
+            ),
+          ),
         ],
       ),
     );
@@ -565,13 +645,19 @@ class _ReportItemViewState extends State<ReportItemView> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _cardHeader(
-              Icons.error_outline_rounded, 'Item not recognized', accent),
+            Icons.error_outline_rounded,
+            'Item not recognized',
+            accent,
+          ),
           const SizedBox(height: 8),
           Text(
             'The AI could not confidently identify this item. Please choose the '
             'category and enter a description manually.',
             style: TextStyle(
-                fontSize: 12, color: Colors.brown.shade800, height: 1.4),
+              fontSize: 12,
+              color: Colors.brown.shade800,
+              height: 1.4,
+            ),
           ),
         ],
       ),
@@ -579,15 +665,15 @@ class _ReportItemViewState extends State<ReportItemView> {
   }
 
   Widget _infoCard(Color border, Color bg, Widget child) => Container(
-        margin: const EdgeInsets.only(top: 16),
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: bg,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: border),
-        ),
-        child: child,
-      );
+    margin: const EdgeInsets.only(top: 16),
+    padding: const EdgeInsets.all(14),
+    decoration: BoxDecoration(
+      color: bg,
+      borderRadius: BorderRadius.circular(14),
+      border: Border.all(color: border),
+    ),
+    child: child,
+  );
 
   Widget _suggestionActionChip(String label, VoidCallback onTap) {
     return Material(
@@ -602,15 +688,21 @@ class _ReportItemViewState extends State<ReportItemView> {
             borderRadius: BorderRadius.circular(20),
             border: Border.all(color: _primaryBlue.withValues(alpha: 0.5)),
           ),
-          child: Row(mainAxisSize: MainAxisSize.min, children: [
-            const Icon(Icons.add_rounded, size: 16, color: _primaryBlue),
-            const SizedBox(width: 4),
-            Text(label,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.add_rounded, size: 16, color: _primaryBlue),
+              const SizedBox(width: 4),
+              Text(
+                label,
                 style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: _primaryBlue)),
-          ]),
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: _primaryBlue,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -647,9 +739,10 @@ class _ReportItemViewState extends State<ReportItemView> {
               padding: const EdgeInsets.only(right: 6),
               child: Icon(icon, size: 15, color: const Color(0xFF607D8B)),
             ),
-          Text(label,
-              style:
-                  const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+          Text(
+            label,
+            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+          ),
         ],
       ),
     );
@@ -667,10 +760,13 @@ class _ReportItemViewState extends State<ReportItemView> {
       borderRadius: BorderRadius.circular(12),
       child: InputDecorator(
         decoration: _inputDeco(hint: 'Select date', icon: Icons.event_outlined),
-        child: Text(text,
-            style: TextStyle(
-                fontSize: 14,
-                color: d == null ? const Color(0xFFBDBDBD) : null)),
+        child: Text(
+          text,
+          style: TextStyle(
+            fontSize: 14,
+            color: d == null ? const Color(0xFFBDBDBD) : null,
+          ),
+        ),
       ),
     );
   }
@@ -722,8 +818,11 @@ class _ReportItemViewState extends State<ReportItemView> {
                       color: _primaryBlue.withValues(alpha: 0.08),
                       shape: BoxShape.circle,
                     ),
-                    child: const Icon(Icons.add_a_photo_rounded,
-                        color: _primaryBlue, size: 32),
+                    child: const Icon(
+                      Icons.add_a_photo_rounded,
+                      color: _primaryBlue,
+                      size: 32,
+                    ),
                   ),
                   const SizedBox(height: 14),
                   const Text(
@@ -739,10 +838,7 @@ class _ReportItemViewState extends State<ReportItemView> {
                     widget.isLost
                         ? 'Camera or Gallery (optional)'
                         : 'Camera or Gallery',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.grey.shade500,
-                    ),
+                    style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
                   ),
                 ],
               )
@@ -761,8 +857,11 @@ class _ReportItemViewState extends State<ReportItemView> {
                           shape: BoxShape.circle,
                         ),
                         padding: const EdgeInsets.all(4),
-                        child: const Icon(Icons.close,
-                            color: Colors.white, size: 18),
+                        child: const Icon(
+                          Icons.close,
+                          color: Colors.white,
+                          size: 18,
+                        ),
                       ),
                     ),
                   ),
@@ -796,7 +895,9 @@ class _ReportItemViewState extends State<ReportItemView> {
           DropdownButtonFormField<String>(
             value: _selectedCategory,
             decoration: _inputDeco(
-                hint: 'Select category', icon: Icons.category_outlined),
+              hint: 'Select category',
+              icon: Icons.category_outlined,
+            ),
             items: _categories
                 .map((c) => DropdownMenuItem(value: c, child: Text(c)))
                 .toList(),
@@ -804,23 +905,27 @@ class _ReportItemViewState extends State<ReportItemView> {
               if (v != null) {
                 setState(() {
                   _selectedCategory = v;
-                  _selectedQuestion = null; // reset — questions depend on category
+                  _selectedQuestion =
+                      null; // reset — questions depend on category
                 });
               }
             },
+            validator: (v) =>
+                v == null ? 'Please select an item category.' : null,
           ),
           const SizedBox(height: 20),
-          _label(widget.isLost
-              ? 'Where did you last see it?'
-              : 'Location Found *'),
+          _label(
+            widget.isLost ? 'Where did you last see it?' : 'Location Found *',
+          ),
           const SizedBox(height: 8),
           // Level 1 — building / area
           DropdownButtonFormField<String>(
             value: _selectedArea,
             isExpanded: true,
             decoration: _inputDeco(
-                hint: 'Select building / area',
-                icon: Icons.apartment_rounded),
+              hint: 'Select building / area',
+              icon: Icons.apartment_rounded,
+            ),
             items: _areas
                 .map((a) => DropdownMenuItem(value: a, child: Text(a)))
                 .toList(),
@@ -840,13 +945,16 @@ class _ReportItemViewState extends State<ReportItemView> {
               value: _selectedSpot,
               isExpanded: true,
               decoration: _inputDeco(
-                  hint: 'Select specific spot',
-                  icon: Icons.place_outlined),
+                hint: 'Select specific spot',
+                icon: Icons.place_outlined,
+              ),
               items: _currentSpots
-                  .map((s) => DropdownMenuItem(
-                        value: s,
-                        child: Text(s, overflow: TextOverflow.ellipsis),
-                      ))
+                  .map(
+                    (s) => DropdownMenuItem(
+                      value: s,
+                      child: Text(s, overflow: TextOverflow.ellipsis),
+                    ),
+                  )
                   .toList(),
               onChanged: (v) => setState(() => _selectedSpot = v),
               validator: (v) {
@@ -862,8 +970,9 @@ class _ReportItemViewState extends State<ReportItemView> {
               controller: _locationCtrl,
               textInputAction: TextInputAction.next,
               decoration: _inputDeco(
-                  hint: 'e.g. near the printer, Level 2',
-                  icon: Icons.edit_location_alt_outlined),
+                hint: 'e.g. near the printer, Level 2',
+                icon: Icons.edit_location_alt_outlined,
+              ),
               validator: (v) {
                 if (_selectedSpot == _otherSpot &&
                     (v == null || v.trim().isEmpty)) {
@@ -887,10 +996,11 @@ class _ReportItemViewState extends State<ReportItemView> {
             maxLines: 3,
             textInputAction: TextInputAction.next,
             decoration: _inputDeco(
-                hint: widget.isLost
-                    ? 'Describe your item — colour, brand, marks…'
-                    : 'Any distinguishing features, colour, brand…',
-                icon: Icons.notes_rounded),
+              hint: widget.isLost
+                  ? 'Describe your item — colour, brand, marks…'
+                  : 'Any distinguishing features, colour, brand…',
+              icon: Icons.notes_rounded,
+            ),
             validator: (v) => (v == null || v.trim().isEmpty)
                 ? 'Description is required.'
                 : null,
@@ -908,29 +1018,38 @@ class _ReportItemViewState extends State<ReportItemView> {
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.verified_user_outlined,
-                      color: Color(0xFFE65100), size: 20),
+                  const Icon(
+                    Icons.verified_user_outlined,
+                    color: Color(0xFFE65100),
+                    size: 20,
+                  ),
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(
                       'Set a security question only the real owner can answer. '
                       'Claimants must answer it before they can contact you.',
                       style: TextStyle(
-                          fontSize: 12, color: Colors.brown.shade700, height: 1.4),
+                        fontSize: 12,
+                        color: Colors.brown.shade700,
+                        height: 1.4,
+                      ),
                     ),
                   ),
                 ],
               ),
             ),
             const SizedBox(height: 16),
-            _label('Ownership Question  ($_selectedCategory)'),
+            _label(
+              'Ownership Question  (${_selectedCategory ?? 'Select category first'})',
+            ),
             const SizedBox(height: 8),
             DropdownButtonFormField<String>(
               value: _selectedQuestion,
               isExpanded: true,
               decoration: _inputDeco(
-                  hint: 'Choose a question for this category',
-                  icon: Icons.help_outline_rounded),
+                hint: 'Choose a question for this category',
+                icon: Icons.help_outline_rounded,
+              ),
               items: [
                 for (final q in _currentQuestions)
                   DropdownMenuItem(
@@ -953,8 +1072,9 @@ class _ReportItemViewState extends State<ReportItemView> {
                 controller: _questionCtrl,
                 textInputAction: TextInputAction.next,
                 decoration: _inputDeco(
-                    hint: 'Type your own question',
-                    icon: Icons.edit_outlined),
+                  hint: 'Type your own question',
+                  icon: Icons.edit_outlined,
+                ),
                 validator: (v) {
                   if (_selectedQuestion == _customQuestion &&
                       (v == null || v.trim().isEmpty)) {
@@ -971,7 +1091,9 @@ class _ReportItemViewState extends State<ReportItemView> {
               controller: _answerCtrl,
               textInputAction: TextInputAction.done,
               decoration: _inputDeco(
-                  hint: 'e.g. Red', icon: Icons.key_outlined),
+                hint: 'e.g. Red',
+                icon: Icons.key_outlined,
+              ),
               validator: (v) {
                 if (v == null || v.trim().isEmpty) {
                   return 'Please set the correct answer.';
@@ -992,9 +1114,11 @@ class _ReportItemViewState extends State<ReportItemView> {
       height: 54,
       child: ElevatedButton.icon(
         onPressed: vm.isLoading ? null : () => _submit(vm),
-        icon: Icon(widget.isLost
-            ? Icons.report_gmailerrorred_rounded
-            : Icons.cloud_upload_rounded),
+        icon: Icon(
+          widget.isLost
+              ? Icons.report_gmailerrorred_rounded
+              : Icons.cloud_upload_rounded,
+        ),
         label: Text(
           widget.isLost ? 'Submit Lost Report' : 'Upload & Process Image',
           style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
@@ -1016,13 +1140,13 @@ class _ReportItemViewState extends State<ReportItemView> {
   // ── Helpers ───────────────────────────────────────────────────────────────
 
   Widget _label(String text) => Text(
-        text,
-        style: const TextStyle(
-          fontSize: 13,
-          fontWeight: FontWeight.w600,
-          color: Color(0xFF37474F),
-        ),
-      );
+    text,
+    style: const TextStyle(
+      fontSize: 13,
+      fontWeight: FontWeight.w600,
+      color: Color(0xFF37474F),
+    ),
+  );
 
   InputDecoration _inputDeco({required String hint, required IconData icon}) =>
       InputDecoration(
@@ -1031,8 +1155,10 @@ class _ReportItemViewState extends State<ReportItemView> {
         prefixIcon: Icon(icon, color: const Color(0xFF9E9E9E), size: 20),
         filled: true,
         fillColor: const Color(0xFFF8FAFF),
-        contentPadding:
-            const EdgeInsets.symmetric(vertical: 15, horizontal: 16),
+        contentPadding: const EdgeInsets.symmetric(
+          vertical: 15,
+          horizontal: 16,
+        ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: const BorderSide(color: Color(0xFFDDE3F0)),
@@ -1051,8 +1177,7 @@ class _ReportItemViewState extends State<ReportItemView> {
         ),
         focusedErrorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide:
-              const BorderSide(color: Color(0xFFD32F2F), width: 1.8),
+          borderSide: const BorderSide(color: Color(0xFFD32F2F), width: 1.8),
         ),
       );
 }

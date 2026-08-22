@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/item_report.dart';
 import '../services/api_service.dart';
+import '../services/classification_service.dart';
 
 class BrowseViewModel extends ChangeNotifier {
   // ── State ──────────────────────────────────────────────────────────────────
@@ -24,14 +25,7 @@ class BrowseViewModel extends ChangeNotifier {
 
   final List<String> categories = const [
     'All',
-    'Electronics',
-    'IDs & Cards',
-    'Bags & Wallets',
-    'Keys & Lanyards',
-    'Books & Stationery',
-    'Clothing & Accessories',
-    'Water Bottles',
-    'Other',
+    ...ClassificationService.categories,
   ];
 
   // ── Helpers ────────────────────────────────────────────────────────────────
@@ -49,8 +43,7 @@ class BrowseViewModel extends ChangeNotifier {
     try {
       if (_searchQuery.isNotEmpty) {
         // FR 4.1 — Smart text search overrides the category filter.
-        _foundItems =
-            await ApiService().searchFoundItemsByText(_searchQuery);
+        _foundItems = await ApiService().searchFoundItemsByText(_searchQuery);
       } else {
         _foundItems = await ApiService().browseFoundItems(
           category: _selectedCategory == 'All' ? null : _selectedCategory,

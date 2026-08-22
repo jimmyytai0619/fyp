@@ -8,6 +8,7 @@ import '../services/classification_service.dart';
 class ReportItemViewModel extends ChangeNotifier {
   final _picker = ImagePicker();
   final ClassificationService _classifier = ClassificationService();
+  bool _disposed = false;
 
   bool _isLoading = false;
   bool get isLoading => _isLoading;
@@ -35,7 +36,11 @@ class ReportItemViewModel extends ChangeNotifier {
 
   void _setLoading(bool v) {
     _isLoading = v;
-    notifyListeners();
+    _notifyIfActive();
+  }
+
+  void _notifyIfActive() {
+    if (!_disposed) notifyListeners();
   }
 
   Future<void> pickImage(ImageSource source) async {
@@ -44,9 +49,9 @@ class ReportItemViewModel extends ChangeNotifier {
       imageQuality: 85,
       maxWidth: 1080,
     );
-    if (picked != null) {
+    if (picked != null && !_disposed) {
       _selectedImage = File(picked.path);
-      notifyListeners();
+      _notifyIfActive();
       await _classifyImage();
     }
   }
@@ -54,24 +59,28 @@ class ReportItemViewModel extends ChangeNotifier {
   /// Runs ML Kit on the selected image and stores the suggestion. Best-effort:
   /// if classification fails, reporting still works with manual category entry.
   Future<void> _classifyImage() async {
+    if (_disposed) return;
     final file = _selectedImage;
     if (file == null) return;
     _isClassifying = true;
-    notifyListeners();
+    _notifyIfActive();
     try {
-      _classification = await _classifier.classify(file);
-    } catch (_) {
+      final result = await _classifier.classify(file);
+      if (!_disposed) _classification = result;
+    } catch (e, stackTrace) {
+      debugPrint('[ReportItemViewModel] classification failed: $e');
+      debugPrintStack(stackTrace: stackTrace);
       _classification = null; // fall back to manual selection
     } finally {
       _isClassifying = false;
-      notifyListeners();
+      _notifyIfActive();
     }
   }
 
   void clearImage() {
     _selectedImage = null;
     _classification = null;
-    notifyListeners();
+    _notifyIfActive();
   }
 
   Future<void> submitReport({
@@ -136,7 +145,9 @@ class ReportItemViewModel extends ChangeNotifier {
         if (_selectedImage != null) {
           try {
             await ApiService().ingestLostItem(newId);
-          } catch (_) {/* ignore — reporting already succeeded */}
+          } catch (_) {
+            /* ignore — reporting already succeeded */
+          }
         }
       } else {
         // Persist the found-date inside the description so no DB schema change
@@ -158,7 +169,9 @@ class ReportItemViewModel extends ChangeNotifier {
         // Fire the background matching agent (FR 4.3). Best-effort.
         try {
           await ApiService().ingestFoundItem(newId);
-        } catch (_) {/* ignore — reporting already succeeded */}
+        } catch (_) {
+          /* ignore — reporting already succeeded */
+        }
       }
     } finally {
       _setLoading(false);
@@ -170,6 +183,7 @@ class ReportItemViewModel extends ChangeNotifier {
 
   @override
   void dispose() {
+    _disposed = true;
     _classifier.dispose();
     super.dispose();
   }

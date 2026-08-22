@@ -5,8 +5,8 @@ FastAPI service implementing Module 3 of the SmartMatch FYP:
 
   • MobileNetV2 feature extraction  (FR 3.2 — 1280-dim vector)
   • Cosine Similarity scoring        (FR 3.3)
-  • 50% confidence threshold         (FR 3.4)
-  • Ranked results with % score      (FR 3.5)
+  • 50/100 match-score threshold     (FR 3.4)
+  • Ranked results by match score    (FR 3.5)
 
 Run:
     uvicorn main:app --host 0.0.0.0 --port 8000
@@ -51,7 +51,7 @@ FOUND_TABLE = "found_items"
 LOST_TABLE = "lost_items"
 
 if not SUPABASE_URL or not SUPABASE_SERVICE_KEY:
-    print("⚠️  SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY not set — check your .env")
+    print("WARNING: SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY not set - check your .env")
 
 supabase: Optional[Client] = (
     create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
@@ -68,7 +68,7 @@ model = MobileNetV2(
     pooling="avg",
     input_shape=(224, 224, 3),
 )
-print("✅ Model ready (1280-dim feature extractor).")
+print("Model ready (1280-dim feature extractor).")
 
 app = FastAPI(title="SmartMatch AI Matching API", version="1.0")
 app.add_middleware(
@@ -205,7 +205,7 @@ async def search(
 ):
     """
     FR 3.1–3.5: compare a query image against found items, returning a ranked
-    list of matches at or above the confidence threshold.
+    list of matches at or above the configured match-score threshold.
 
     Relevance controls:
       • category — optional hard filter (only compare items of the same type)
@@ -236,7 +236,7 @@ async def search(
         if vec is None:
             continue
 
-        score = cosine_similarity(query_vec, vec) * 100.0  # → percentage
+        score = cosine_similarity(query_vec, vec) * 100.0  # 0–100 similarity scale
         if score >= MATCH_THRESHOLD:
             matches.append(
                 {
@@ -358,7 +358,7 @@ async def ingest_found(item_id: str = Form(...)):
             supabase.table("notifications").insert(
                 {
                     "user_id": lr.get("user_id"),
-                    "title": f"Possible match found ({round(score)}%)",
+                    "title": f"Possible match found (score {round(score)}/100)",
                     "message": (
                         f"A {found.get('category', 'item')} matching your lost "
                         f"report was just reported found at "
@@ -455,7 +455,7 @@ async def ingest_lost(item_id: str = Form(...)):
         supabase.table("notifications").insert(
             {
                 "user_id": lost.get("user_id"),
-                "title": f"Possible match found ({round(best_score)}%)",
+                "title": f"Possible match found (score {round(best_score)}/100)",
                 "message": (
                     f"A {best_found.get('category', 'item')} matching your lost "
                     f"report may already be waiting — reported found at "

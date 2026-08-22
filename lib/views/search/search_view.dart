@@ -33,8 +33,10 @@ class _SearchScaffold extends StatelessWidget {
       appBar: AppBar(
         backgroundColor: _primaryBlue,
         foregroundColor: Colors.white,
-        title: const Text('AI Visual Search',
-            style: TextStyle(fontWeight: FontWeight.w700)),
+        title: const Text(
+          'AI Visual Search',
+          style: TextStyle(fontWeight: FontWeight.w700),
+        ),
         elevation: 0,
         actions: [
           if (vm.state != SearchState.idle || vm.referenceImage != null)
@@ -49,16 +51,15 @@ class _SearchScaffold extends StatelessWidget {
         duration: const Duration(milliseconds: 350),
         child: switch (vm.state) {
           SearchState.idle => _PreSearchPanel(key: const ValueKey('pre')),
-          SearchState.loading =>
-            _LoadingPanel(key: const ValueKey('loading')),
+          SearchState.loading => _LoadingPanel(key: const ValueKey('loading')),
           SearchState.results => _ResultsPanel(
-              key: const ValueKey('results'),
-              results: vm.searchResults,
-            ),
+            key: const ValueKey('results'),
+            results: vm.searchResults,
+          ),
           SearchState.error => _ErrorPanel(
-              key: const ValueKey('error'),
-              message: vm.errorMessage,
-            ),
+            key: const ValueKey('error'),
+            message: vm.errorMessage,
+          ),
           _ => _PreSearchPanel(key: const ValueKey('pre2')),
         },
       ),
@@ -78,7 +79,8 @@ class _PreSearchPanel extends StatelessWidget {
     showModalBottomSheet(
       context: context,
       shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
       builder: (_) => SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -88,13 +90,15 @@ class _PreSearchPanel extends StatelessWidget {
               width: 40,
               height: 4,
               decoration: BoxDecoration(
-                  color: Colors.grey.shade300,
-                  borderRadius: BorderRadius.circular(2)),
+                color: Colors.grey.shade300,
+                borderRadius: BorderRadius.circular(2),
+              ),
             ),
             const SizedBox(height: 16),
-            const Text('Select Image Source',
-                style:
-                    TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+            const Text(
+              'Select Image Source',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+            ),
             const SizedBox(height: 8),
             ListTile(
               leading: const CircleAvatar(
@@ -110,8 +114,10 @@ class _PreSearchPanel extends StatelessWidget {
             ListTile(
               leading: const CircleAvatar(
                 backgroundColor: Color(0xFFE8F5E9),
-                child: Icon(Icons.photo_library_rounded,
-                    color: Color(0xFF00897B)),
+                child: Icon(
+                  Icons.photo_library_rounded,
+                  color: Color(0xFF00897B),
+                ),
               ),
               title: const Text('Choose from Gallery'),
               onTap: () {
@@ -173,13 +179,19 @@ class _PreSearchPanel extends StatelessWidget {
                           child: const Column(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              Icon(Icons.edit_outlined,
-                                  color: Colors.white, size: 30),
+                              Icon(
+                                Icons.edit_outlined,
+                                color: Colors.white,
+                                size: 30,
+                              ),
                               SizedBox(height: 8),
-                              Text('Tap to change photo',
-                                  style: TextStyle(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.w600)),
+                              Text(
+                                'Tap to change photo',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
                             ],
                           ),
                         ),
@@ -195,20 +207,29 @@ class _PreSearchPanel extends StatelessWidget {
                             color: _primaryBlue.withValues(alpha: 0.08),
                             shape: BoxShape.circle,
                           ),
-                          child: const Icon(Icons.image_search_rounded,
-                              color: _primaryBlue, size: 34),
+                          child: const Icon(
+                            Icons.image_search_rounded,
+                            color: _primaryBlue,
+                            size: 34,
+                          ),
                         ),
                         const SizedBox(height: 14),
-                        const Text('Upload Reference Photo',
-                            style: TextStyle(
-                                fontWeight: FontWeight.w700,
-                                fontSize: 16,
-                                color: _primaryBlue)),
+                        const Text(
+                          'Upload Reference Photo',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 16,
+                            color: _primaryBlue,
+                          ),
+                        ),
                         const SizedBox(height: 4),
-                        Text('Camera or Gallery',
-                            style: TextStyle(
-                                fontSize: 13,
-                                color: Colors.grey.shade500)),
+                        Text(
+                          'Camera or Gallery',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: Colors.grey.shade500,
+                          ),
+                        ),
                       ],
                     ),
             ),
@@ -226,8 +247,11 @@ class _PreSearchPanel extends StatelessWidget {
             ),
             child: Row(
               children: [
-                const Icon(Icons.filter_list_rounded,
-                    color: _primaryBlue, size: 20),
+                const Icon(
+                  Icons.filter_list_rounded,
+                  color: _primaryBlue,
+                  size: 20,
+                ),
                 const SizedBox(width: 10),
                 Expanded(
                   child: DropdownButtonHideUnderline(
@@ -236,11 +260,15 @@ class _PreSearchPanel extends StatelessWidget {
                       isExpanded: true,
                       borderRadius: BorderRadius.circular(12),
                       items: SearchViewModel.categories
-                          .map((c) => DropdownMenuItem(
-                                value: c,
-                                child: Text(c,
-                                    style: const TextStyle(fontSize: 14)),
-                              ))
+                          .map(
+                            (c) => DropdownMenuItem(
+                              value: c,
+                              child: Text(
+                                c,
+                                style: const TextStyle(fontSize: 14),
+                              ),
+                            ),
+                          )
                           .toList(),
                       onChanged: (v) {
                         if (v != null) {
@@ -263,136 +291,150 @@ class _PreSearchPanel extends StatelessWidget {
             child: SizedBox(
               height: 54,
               child: ElevatedButton.icon(
-                onPressed:
-                    hasImage ? () => vm.executeVisualSearch() : null,
+                onPressed: hasImage ? () => vm.executeVisualSearch() : null,
                 icon: const Icon(Icons.search_rounded),
-                label: const Text('Search with AI',
-                    style: TextStyle(
-                        fontSize: 16, fontWeight: FontWeight.w700)),
+                label: const Text(
+                  'Search with AI',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                ),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: _primaryBlue,
                   foregroundColor: Colors.white,
-                  disabledBackgroundColor:
-                      _primaryBlue.withValues(alpha: 0.5),
+                  disabledBackgroundColor: _primaryBlue.withValues(alpha: 0.5),
                   elevation: 3,
                   shadowColor: _primaryBlue.withValues(alpha: 0.4),
                   shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14)),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
                 ),
               ),
             ),
           ),
 
-          if (!hasImage) ...[
-            const SizedBox(height: 20),
-            _buildHowItWorks(),
-          ],
+          if (!hasImage) ...[const SizedBox(height: 20), _buildHowItWorks()],
         ],
       ),
     );
   }
 
   Widget _buildHeroCard() => Container(
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            colors: [Color(0xFF1565C0), Color(0xFF0D47A1)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
+    padding: const EdgeInsets.all(20),
+    decoration: BoxDecoration(
+      gradient: const LinearGradient(
+        colors: [Color(0xFF1565C0), Color(0xFF0D47A1)],
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+      ),
+      borderRadius: BorderRadius.circular(20),
+    ),
+    child: Row(
+      children: [
+        Container(
+          width: 52,
+          height: 52,
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.2),
+            borderRadius: BorderRadius.circular(14),
           ),
-          borderRadius: BorderRadius.circular(20),
+          child: const Icon(
+            Icons.auto_awesome_rounded,
+            color: Colors.white,
+            size: 28,
+          ),
         ),
-        child: Row(
-          children: [
-            Container(
-              width: 52,
-              height: 52,
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.2),
-                borderRadius: BorderRadius.circular(14),
+        const SizedBox(width: 16),
+        const Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Use AI Visual Search',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 17,
+                  fontWeight: FontWeight.w800,
+                ),
               ),
-              child: const Icon(Icons.auto_awesome_rounded,
-                  color: Colors.white, size: 28),
-            ),
-            const SizedBox(width: 16),
-            const Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Use AI Visual Search',
-                      style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 17,
-                          fontWeight: FontWeight.w800)),
-                  SizedBox(height: 4),
-                  Text(
-                    'Upload a photo of your lost item and our AI will scan the database for visual matches.',
-                    style: TextStyle(
-                        color: Colors.white70,
-                        fontSize: 12.5,
-                        height: 1.4),
-                  ),
-                ],
+              SizedBox(height: 4),
+              Text(
+                'Upload a photo of your lost item and our AI will scan the database for visual matches.',
+                style: TextStyle(
+                  color: Colors.white70,
+                  fontSize: 12.5,
+                  height: 1.4,
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
-      );
+      ],
+    ),
+  );
 
   Widget _buildHowItWorks() => Container(
-        padding: const EdgeInsets.all(18),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.05),
-              blurRadius: 12,
-              offset: const Offset(0, 4),
-            ),
-          ],
+    padding: const EdgeInsets.all(18),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(16),
+      boxShadow: [
+        BoxShadow(
+          color: Colors.black.withValues(alpha: 0.05),
+          blurRadius: 12,
+          offset: const Offset(0, 4),
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('How it works',
-                style: TextStyle(
-                    fontWeight: FontWeight.w700,
-                    fontSize: 13,
-                    color: Color(0xFF37474F))),
-            const SizedBox(height: 12),
-            _step('1', 'Upload a clear photo of your lost item'),
-            _step('2', 'AI scans the found-items database'),
-            _step('3', 'Review matches ranked by similarity score'),
-          ],
+      ],
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'How it works',
+          style: TextStyle(
+            fontWeight: FontWeight.w700,
+            fontSize: 13,
+            color: Color(0xFF37474F),
+          ),
         ),
-      );
+        const SizedBox(height: 12),
+        _step('1', 'Upload a clear photo of your lost item'),
+        _step('2', 'AI scans the found-items database'),
+        _step('3', 'Review matches ranked by similarity score'),
+      ],
+    ),
+  );
 
   Widget _step(String num, String text) => Padding(
-        padding: const EdgeInsets.only(bottom: 8),
-        child: Row(
-          children: [
-            Container(
-              width: 24,
-              height: 24,
-              decoration: const BoxDecoration(
-                  color: Color(0xFFE3F2FD), shape: BoxShape.circle),
-              child: Center(
-                child: Text(num,
-                    style: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                        color: Color(0xFF1565C0))),
+    padding: const EdgeInsets.only(bottom: 8),
+    child: Row(
+      children: [
+        Container(
+          width: 24,
+          height: 24,
+          decoration: const BoxDecoration(
+            color: Color(0xFFE3F2FD),
+            shape: BoxShape.circle,
+          ),
+          child: Center(
+            child: Text(
+              num,
+              style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: Color(0xFF1565C0),
               ),
             ),
-            const SizedBox(width: 10),
-            Expanded(
-                child: Text(text,
-                    style: const TextStyle(
-                        fontSize: 13, color: Color(0xFF546E7A)))),
-          ],
+          ),
         ),
-      );
+        const SizedBox(width: 10),
+        Expanded(
+          child: Text(
+            text,
+            style: const TextStyle(fontSize: 13, color: Color(0xFF546E7A)),
+          ),
+        ),
+      ],
+    ),
+  );
 }
 
 // ── Loading Panel ─────────────────────────────────────────────────────────────
@@ -420,8 +462,9 @@ class _LoadingPanelState extends State<_LoadingPanel>
   void initState() {
     super.initState();
     _pulse = AnimationController(
-        vsync: this, duration: const Duration(seconds: 1))
-      ..repeat(reverse: true);
+      vsync: this,
+      duration: const Duration(seconds: 1),
+    )..repeat(reverse: true);
 
     // Cycle through step labels every 1.4 s for a realistic feel.
     Future.doWhile(() async {
@@ -472,19 +515,21 @@ class _LoadingPanelState extends State<_LoadingPanel>
               ),
             ),
             const SizedBox(height: 28),
-            const Text('AI is scanning database vectors...',
-                style: TextStyle(
-                    fontSize: 17,
-                    fontWeight: FontWeight.w700,
-                    color: Color(0xFF0D2B6B))),
+            const Text(
+              'AI is scanning database vectors...',
+              style: TextStyle(
+                fontSize: 17,
+                fontWeight: FontWeight.w700,
+                color: Color(0xFF0D2B6B),
+              ),
+            ),
             const SizedBox(height: 12),
             AnimatedSwitcher(
               duration: const Duration(milliseconds: 400),
               child: Text(
                 _steps[_stepIndex],
                 key: ValueKey(_stepIndex),
-                style: TextStyle(
-                    fontSize: 13.5, color: Colors.grey.shade600),
+                style: TextStyle(fontSize: 13.5, color: Colors.grey.shade600),
               ),
             ),
           ],
@@ -505,14 +550,20 @@ class _SaveLostReportButton extends StatelessWidget {
       return Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Icon(Icons.check_circle_rounded,
-              color: Color(0xFF2E7D32), size: 20),
+          const Icon(
+            Icons.check_circle_rounded,
+            color: Color(0xFF2E7D32),
+            size: 20,
+          ),
           const SizedBox(width: 8),
-          Text('Saved — we\'ll alert you when found',
-              style: TextStyle(
-                  color: Colors.grey.shade700,
-                  fontWeight: FontWeight.w600,
-                  fontSize: 13.5)),
+          Text(
+            'Saved — we\'ll alert you when found',
+            style: TextStyle(
+              color: Colors.grey.shade700,
+              fontWeight: FontWeight.w600,
+              fontSize: 13.5,
+            ),
+          ),
         ],
       );
     }
@@ -521,8 +572,9 @@ class _SaveLostReportButton extends StatelessWidget {
       onPressed: vm.savingLostReport
           ? null
           : () async {
-              final error =
-                  await context.read<SearchViewModel>().saveReferenceAsLostReport();
+              final error = await context
+                  .read<SearchViewModel>()
+                  .saveReferenceAsLostReport();
               if (!context.mounted) return;
               if (error != null) {
                 ScaffoldMessenger.of(context).showSnackBar(
@@ -539,17 +591,20 @@ class _SaveLostReportButton extends StatelessWidget {
               width: 18,
               height: 18,
               child: CircularProgressIndicator(
-                  strokeWidth: 2, color: Colors.white),
+                strokeWidth: 2,
+                color: Colors.white,
+              ),
             )
           : const Icon(Icons.notifications_active_outlined),
-      label: const Text('Save as Lost Report',
-          style: TextStyle(fontWeight: FontWeight.w700)),
+      label: const Text(
+        'Save as Lost Report',
+        style: TextStyle(fontWeight: FontWeight.w700),
+      ),
       style: ElevatedButton.styleFrom(
         backgroundColor: const Color(0xFF1565C0),
         foregroundColor: Colors.white,
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-        shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
     );
   }
@@ -571,20 +626,25 @@ class _ResultsPanel extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.search_off_rounded,
-                  size: 72, color: Colors.grey.shade400),
+              Icon(
+                Icons.search_off_rounded,
+                size: 72,
+                color: Colors.grey.shade400,
+              ),
               const SizedBox(height: 16),
-              const Text('No matches found',
-                  style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w700,
-                      color: Color(0xFF37474F))),
+              const Text(
+                'No matches found',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF37474F),
+                ),
+              ),
               const SizedBox(height: 8),
               Text(
                 "It hasn't been reported found yet. Save it as a lost "
                 'report and we\'ll alert you when a match turns up.',
-                style: TextStyle(
-                    fontSize: 14, color: Colors.grey.shade500),
+                style: TextStyle(fontSize: 14, color: Colors.grey.shade500),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 24),
@@ -602,27 +662,29 @@ class _ResultsPanel extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(20, 16, 20, 4),
           child: Row(
             children: [
-              const Icon(Icons.auto_awesome_rounded,
-                  size: 18, color: Color(0xFF1565C0)),
+              const Icon(
+                Icons.auto_awesome_rounded,
+                size: 18,
+                color: Color(0xFF1565C0),
+              ),
               const SizedBox(width: 8),
               Text(
                 '${results.length} match${results.length == 1 ? '' : 'es'} found',
                 style: const TextStyle(
-                    fontWeight: FontWeight.w700,
-                    fontSize: 15,
-                    color: Color(0xFF1565C0)),
+                  fontWeight: FontWeight.w700,
+                  fontSize: 15,
+                  color: Color(0xFF1565C0),
+                ),
               ),
             ],
           ),
         ),
         Expanded(
           child: ListView.separated(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             itemCount: results.length,
             separatorBuilder: (_, __) => const SizedBox(height: 12),
-            itemBuilder: (context, i) =>
-                _MatchCard(item: results[i]),
+            itemBuilder: (context, i) => _MatchCard(item: results[i]),
           ),
         ),
       ],
@@ -648,10 +710,9 @@ class _MatchCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: () => Navigator.of(context).push(
-        MaterialPageRoute(
-            builder: (_) => ItemDetailView(item: item)),
-      ),
+      onTap: () => Navigator.of(
+        context,
+      ).push(MaterialPageRoute(builder: (_) => ItemDetailView(item: item))),
       child: Container(
         decoration: BoxDecoration(
           color: Colors.white,
@@ -669,15 +730,15 @@ class _MatchCard extends StatelessWidget {
             // Thumbnail
             ClipRRect(
               borderRadius: const BorderRadius.horizontal(
-                  left: Radius.circular(18)),
+                left: Radius.circular(18),
+              ),
               child: item.imageUrl.isNotEmpty
                   ? Image.network(
                       item.imageUrl,
                       width: 110,
                       height: 110,
                       fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) =>
-                          _placeholderThumb(),
+                      errorBuilder: (_, __, ___) => _placeholderThumb(),
                     )
                   : _placeholderThumb(),
             ),
@@ -686,14 +747,18 @@ class _MatchCard extends StatelessWidget {
             Expanded(
               child: Padding(
                 padding: const EdgeInsets.symmetric(
-                    horizontal: 14, vertical: 12),
+                  horizontal: 14,
+                  vertical: 12,
+                ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     // Badge
                     Container(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 4),
+                        horizontal: 10,
+                        vertical: 4,
+                      ),
                       decoration: BoxDecoration(
                         color: _badgeColor,
                         borderRadius: BorderRadius.circular(20),
@@ -701,15 +766,19 @@ class _MatchCard extends StatelessWidget {
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(Icons.auto_awesome,
-                              color: Colors.white, size: 12),
+                          const Icon(
+                            Icons.auto_awesome,
+                            color: Colors.white,
+                            size: 12,
+                          ),
                           const SizedBox(width: 4),
                           Text(
-                            '${item.confidenceScore.toStringAsFixed(1)}%',
+                            'Match ${item.confidenceScore.toStringAsFixed(1)}/100',
                             style: const TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w700,
-                                fontSize: 12),
+                              color: Colors.white,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 12,
+                            ),
                           ),
                         ],
                       ),
@@ -720,9 +789,10 @@ class _MatchCard extends StatelessWidget {
                     Text(
                       item.category,
                       style: const TextStyle(
-                          fontWeight: FontWeight.w700,
-                          fontSize: 15,
-                          color: Color(0xFF1A237E)),
+                        fontWeight: FontWeight.w700,
+                        fontSize: 15,
+                        color: Color(0xFF1A237E),
+                      ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -731,16 +801,19 @@ class _MatchCard extends StatelessWidget {
 
                     Row(
                       children: [
-                        Icon(Icons.location_on_outlined,
-                            size: 13,
-                            color: Colors.grey.shade500),
+                        Icon(
+                          Icons.location_on_outlined,
+                          size: 13,
+                          color: Colors.grey.shade500,
+                        ),
                         const SizedBox(width: 3),
                         Expanded(
                           child: Text(
                             item.locationFound,
                             style: TextStyle(
-                                fontSize: 12.5,
-                                color: Colors.grey.shade600),
+                              fontSize: 12.5,
+                              color: Colors.grey.shade600,
+                            ),
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
                           ),
@@ -756,13 +829,17 @@ class _MatchCard extends StatelessWidget {
                         Text(
                           'View Details',
                           style: const TextStyle(
-                              fontSize: 12,
-                              color: _primaryBlue,
-                              fontWeight: FontWeight.w600),
+                            fontSize: 12,
+                            color: _primaryBlue,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                         const SizedBox(width: 2),
-                        const Icon(Icons.chevron_right_rounded,
-                            size: 16, color: _primaryBlue),
+                        const Icon(
+                          Icons.chevron_right_rounded,
+                          size: 16,
+                          color: _primaryBlue,
+                        ),
                       ],
                     ),
                   ],
@@ -776,12 +853,11 @@ class _MatchCard extends StatelessWidget {
   }
 
   Widget _placeholderThumb() => Container(
-        width: 110,
-        height: 110,
-        color: const Color(0xFFE3F2FD),
-        child: const Icon(Icons.image_outlined,
-            color: Color(0xFF1565C0), size: 36),
-      );
+    width: 110,
+    height: 110,
+    color: const Color(0xFFE3F2FD),
+    child: const Icon(Icons.image_outlined, color: Color(0xFF1565C0), size: 36),
+  );
 }
 
 // ── Error Panel ───────────────────────────────────────────────────────────────
@@ -805,10 +881,11 @@ class _ErrorPanel extends StatelessWidget {
               width: 80,
               height: 80,
               decoration: BoxDecoration(
-                  color: _isPermissionError
-                      ? const Color(0xFFFFF3E0)
-                      : const Color(0xFFFFEBEE),
-                  shape: BoxShape.circle),
+                color: _isPermissionError
+                    ? const Color(0xFFFFF3E0)
+                    : const Color(0xFFFFEBEE),
+                shape: BoxShape.circle,
+              ),
               child: Icon(
                 _isPermissionError
                     ? Icons.lock_outline_rounded
@@ -823,9 +900,10 @@ class _ErrorPanel extends StatelessWidget {
             Text(
               _isPermissionError ? 'Permission Required' : 'Search Failed',
               style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
-                  color: Color(0xFF37474F)),
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+                color: Color(0xFF37474F),
+              ),
             ),
             const SizedBox(height: 8),
             Text(
@@ -844,7 +922,8 @@ class _ErrorPanel extends StatelessWidget {
                   backgroundColor: const Color(0xFFE65100),
                   foregroundColor: Colors.white,
                   shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12)),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                 ),
                 onPressed: () {
                   openAppSettings();
@@ -859,7 +938,8 @@ class _ErrorPanel extends StatelessWidget {
                   backgroundColor: const Color(0xFF1565C0),
                   foregroundColor: Colors.white,
                   shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12)),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                 ),
                 onPressed: () =>
                     context.read<SearchViewModel>().executeVisualSearch(),
