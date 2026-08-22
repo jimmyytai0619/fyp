@@ -27,6 +27,10 @@ alter table public.claims add column if not exists return_evidence_url text;
 --     (set automatically on a completed return, or manually by the owner).
 alter table public.lost_items add column if not exists is_resolved boolean default false;
 
+-- 1e. Text the app's OCR read off the found item (brand/label/number). Shown to
+--     the finder as a verification aid and blended into AI matching.
+alter table public.found_items add column if not exists ocr_text text;
+
 -- 2. Recreate submit_claim with the finder notification on a passed quiz.
 create or replace function public.submit_claim(p_item_id uuid, p_answer text)
 returns text
@@ -199,42 +203,24 @@ begin
   if not found then return 'NOT_FOUND'; end if;
   if v_uid <> v_finder and v_uid <> v_claimant then return 'NOT_PARTY'; end if;
 
-  update claims set status = 'Returned', updated_at = now(),
+  -- Finder records the handover (with proof) → status waits on the claimant's
+  -- confirmation. It is NOT fully "Returned" until the claimant confirms below.
+  update claims set status = 'ReturnPending', updated_at = now(),
          return_evidence_url = coalesce(p_evidence_url, return_evidence_url)
     where id = p_claim_id;
 
-  -- Count it toward the finder's "Items Returned" stat (best-effort).
-  begin
-    update found_items set is_returned = true where id = v_item;
-  exception when others then null;
-  end;
-
-  -- Close the claimant's matching lost report(s) so they stop drawing match
-  -- alerts now that they've got their item back (best-effort).
-  begin
-    update lost_items set is_resolved = true
-      where user_id = v_claimant
-        and category = v_category
-        and coalesce(is_resolved, false) = false;
-  exception when others then null;
-  end;
-
-  -- Notify the OTHER party (best-effort: never fail the status change).
-  if v_uid = v_finder then
-    v_target := v_claimant;
-    v_title  := 'Item returned';
-    v_msg    := 'Your ' || coalesce(v_category, 'item')
-                || ' has been marked as returned. Glad you got it back!';
-  else
-    v_target := v_finder;
-    v_title  := 'Handover complete';
-    v_msg    := 'The owner confirmed they received the '
-                || coalesce(v_category, 'item') || '. Thanks for returning it!';
-  end if;
-
+  -- Ask the claimant to confirm they actually received the item (best-effort).
   begin
     insert into notifications(user_id, title, message, item_id, is_read, type)
-      values (v_target, v_title, v_msg, v_item, false, 'claim_returned');
+      values (
+        v_claimant,
+        'Confirm you received it',
+        'The finder marked your ' || coalesce(v_category, 'item')
+          || ' as handed over. Please confirm you received it.',
+        v_item,
+        false,
+        'return_pending'
+      );
   exception when others then null;
   end;
 
@@ -243,6 +229,69 @@ end;
 $$;
 
 grant execute on function public.mark_returned(uuid, text) to authenticated;
+
+-- 7. Two-party return confirmation. The claimant confirms (or denies) receipt.
+--    Only a "yes" finalises the return — counts the item, closes the lost
+--    report, and tells the finder. A "no" flags it back to the finder.
+create or replace function public.confirm_return(p_claim_id uuid, p_received boolean)
+returns text
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_uid      uuid := auth.uid();
+  v_finder   uuid;
+  v_claimant uuid;
+  v_item     uuid;
+  v_category text;
+begin
+  if v_uid is null then return 'NOT_AUTHENTICATED'; end if;
+  select c.finder_id, c.claimant_id, c.found_item_id, fi.category
+    into v_finder, v_claimant, v_item, v_category
+    from claims c join found_items fi on fi.id = c.found_item_id
+    where c.id = p_claim_id;
+  if not found then return 'NOT_FOUND'; end if;
+  if v_uid <> v_claimant then return 'NOT_CLAIMANT'; end if;
+
+  if p_received then
+    update claims set status = 'Returned', updated_at = now() where id = p_claim_id;
+
+    begin
+      update found_items set is_returned = true where id = v_item;
+    exception when others then null;
+    end;
+
+    begin
+      update lost_items set is_resolved = true
+        where user_id = v_claimant and category = v_category
+          and coalesce(is_resolved, false) = false;
+    exception when others then null;
+    end;
+
+    begin
+      insert into notifications(user_id, title, message, item_id, is_read, type)
+        values (v_finder, 'Return confirmed',
+          'The owner confirmed they received the ' || coalesce(v_category, 'item')
+            || '. Thanks for returning it!', v_item, false, 'return_confirmed');
+    exception when others then null;
+    end;
+
+    return 'OK';
+  else
+    begin
+      insert into notifications(user_id, title, message, item_id, is_read, type)
+        values (v_finder, 'Return not confirmed',
+          'The owner said they have not received the ' || coalesce(v_category, 'item')
+            || ' yet. Please follow up.', v_item, false, 'return_disputed');
+    exception when others then null;
+    end;
+
+    return 'DISPUTED';
+  end if;
+end;
+$$;
+grant execute on function public.confirm_return(uuid, boolean) to authenticated;
 
 -- 5. Chat message alerts — when one party sends a handover message, notify the
 --    other. A trigger (security definer) writes the cross-user notification.

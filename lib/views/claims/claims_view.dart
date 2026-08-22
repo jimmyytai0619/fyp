@@ -189,6 +189,32 @@ class _ClaimCard extends StatelessWidget {
               ),
             ],
           ),
+          // Finder aid: text the AI read off the item, to cross-check a claim.
+          if (asFinder && (claim.itemOcrText ?? '').trim().isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF3E5F5),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.document_scanner_outlined,
+                      size: 15, color: Color(0xFF6A1B9A)),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      'Detected on item: "${claim.itemOcrText!.trim()}"',
+                      style: const TextStyle(
+                          fontSize: 12, color: Color(0xFF6A1B9A)),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
           const SizedBox(height: 12),
           _actions(context),
         ],
@@ -283,6 +309,13 @@ class _ClaimCard extends StatelessWidget {
     if (!asFinder && claim.status == 'Pending') {
       return _note('Waiting for the finder to approve your claim.');
     }
+    // Return pending → the claimant must confirm they received the item.
+    if (claim.status == 'ReturnPending') {
+      if (asFinder) {
+        return _note('Waiting for the claimant to confirm they received it.');
+      }
+      return _confirmReceiptActions(context);
+    }
     if (claim.status == 'Rejected') {
       return _note('This claim was rejected by the finder.');
     }
@@ -323,6 +356,81 @@ class _ClaimCard extends StatelessWidget {
       );
     }
     return const SizedBox.shrink();
+  }
+
+  /// Claimant's side of a pending return: shows the finder's proof photo and
+  /// asks them to confirm receipt (two-party confirmation).
+  Widget _confirmReceiptActions(BuildContext context) {
+    final vm = context.read<ClaimsViewModel>();
+    final hasProof = (claim.returnEvidenceUrl ?? '').isNotEmpty;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _note('The finder marked this as handed over. Did you receive it?'),
+        if (hasProof) ...[
+          const SizedBox(height: 8),
+          GestureDetector(
+            onTap: () => _showProof(context, claim.returnEvidenceUrl!),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: Image.network(
+                claim.returnEvidenceUrl!,
+                height: 110,
+                width: double.infinity,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => _thumb(),
+              ),
+            ),
+          ),
+        ],
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            Expanded(
+              child: OutlinedButton(
+                onPressed: () => _confirmReceipt(context, vm, false),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: const Color(0xFFC62828),
+                  side: const BorderSide(color: Color(0xFFC62828)),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10)),
+                ),
+                child: const Text('No, not yet'),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: ElevatedButton(
+                onPressed: () => _confirmReceipt(context, vm, true),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF2E7D32),
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10)),
+                ),
+                child: const Text('Yes, I received it'),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Future<void> _confirmReceipt(
+      BuildContext context, ClaimsViewModel vm, bool received) async {
+    final result = await vm.confirmReturn(claim, received);
+    if (!context.mounted) return;
+    final (msg, ok) = switch (result) {
+      'OK' => ('Return confirmed — all done! 🎉', true),
+      'DISPUTED' => ("We've let the finder know it hasn't arrived.", true),
+      _ => ('Something went wrong. Please try again.', false),
+    };
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(msg),
+      backgroundColor: ok ? const Color(0xFF2E7D32) : const Color(0xFFD32F2F),
+      behavior: SnackBarBehavior.floating,
+    ));
   }
 
   /// Secure-handover row on a verified claim: the finder shows a QR/code, the
@@ -503,12 +611,13 @@ class _StatusBadge extends StatelessWidget {
       'Verified' => (const Color(0xFFE3F2FD), const Color(0xFF1565C0)),
       'Returned' => (const Color(0xFFE8F5E9), const Color(0xFF2E7D32)),
       'Rejected' => (const Color(0xFFFFEBEE), const Color(0xFFC62828)),
-      _ => (const Color(0xFFFFF8E1), const Color(0xFFE65100)), // Pending/Quiz
+      _ => (const Color(0xFFFFF8E1), const Color(0xFFE65100)), // Pending/Quiz/…
     };
+    final label = status == 'ReturnPending' ? 'Awaiting Confirmation' : status;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
       decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(20)),
-      child: Text(status,
+      child: Text(label,
           style: TextStyle(
               fontSize: 11.5, fontWeight: FontWeight.w700, color: fg)),
     );

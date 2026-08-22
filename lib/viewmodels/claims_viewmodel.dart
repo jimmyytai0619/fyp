@@ -64,6 +64,23 @@ class ClaimsViewModel extends ChangeNotifier {
     }
   }
 
+  /// Claimant confirms (received = true) or denies receiving the item. On a
+  /// confirmed receipt the claim is finalised as Returned. Returns true if the
+  /// RPC succeeded (OK or DISPUTED), false on error.
+  Future<String?> confirmReturn(Claim claim, bool received) async {
+    try {
+      final result = await ApiService().confirmReturn(claim.id, received);
+      debugPrint('[ClaimsViewModel] confirm_return result: $result');
+      await fetchAll();
+      return result;
+    } catch (e) {
+      _errorMessage = 'Could not update the return. Please try again.';
+      notifyListeners();
+      debugPrint('[ClaimsViewModel] confirmReturn error: $e');
+      return null;
+    }
+  }
+
   /// Marks the handover complete with a required proof photo. Uploads the photo
   /// as evidence, then runs the server-side mark_returned (which flags the found
   /// item returned, stores the evidence, and notifies the other party).

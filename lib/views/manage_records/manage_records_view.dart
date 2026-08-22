@@ -419,7 +419,11 @@ class _ClaimBadge extends StatelessWidget {
       'Rejected' => (const Color(0xFFFFEBEE), const Color(0xFFC62828)),
       _ => (const Color(0xFFFFF8E1), const Color(0xFFE65100)),
     };
-    final label = status == 'Pending' ? 'Claim pending' : status;
+    final label = switch (status) {
+      'Pending' => 'Claim pending',
+      'ReturnPending' => 'Awaiting confirmation',
+      _ => status,
+    };
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
       decoration:

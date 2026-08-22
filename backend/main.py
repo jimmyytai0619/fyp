@@ -15,6 +15,7 @@ Run:
 import os
 import io
 import json
+import re
 from typing import Optional
 
 import numpy as np
@@ -47,6 +48,10 @@ LOST_NOTIFY_THRESHOLD = float(os.getenv("LOST_NOTIFY_THRESHOLD", "50"))
 # SAME_BUILDING_MATCH_SCORE (location is the only signal we have then).
 LOCATION_BOOST = float(os.getenv("LOCATION_BOOST", "15"))
 SAME_BUILDING_MATCH_SCORE = float(os.getenv("SAME_BUILDING_MATCH_SCORE", "60"))
+# Image + text matching: blend the photo similarity with a text-overlap score of
+# the two items' descriptions/categories so wording ("black Nike bottle") helps.
+IMAGE_WEIGHT = float(os.getenv("IMAGE_WEIGHT", "0.8"))
+TEXT_WEIGHT = float(os.getenv("TEXT_WEIGHT", "0.2"))
 FOUND_TABLE = "found_items"
 LOST_TABLE = "lost_items"
 
@@ -132,6 +137,35 @@ def building_of(location: Optional[str]) -> str:
         if sep in location:
             return location.split(sep)[0].strip().lower()
     return location.strip().lower()
+
+
+_STOPWORDS = {"the", "a", "an", "and", "of", "with", "for", "on", "in", "my",
+              "is", "it", "item", "found", "lost", "at", "to"}
+
+
+def text_similarity(a: Optional[str], b: Optional[str]) -> float:
+    """Word-overlap (Jaccard) of two texts, 0..1 — a lightweight text signal to
+    blend with the image score. Ignores common stopwords."""
+    def toks(s):
+        return {w for w in re.findall(r"[a-z0-9]+", (s or "").lower())
+                if w not in _STOPWORDS and len(w) > 1}
+    ta, tb = toks(a), toks(b)
+    if not ta or not tb:
+        return 0.0
+    return len(ta & tb) / len(ta | tb)
+
+
+def blended_score(image_cos: float, text_a: str, text_b: str) -> float:
+    """Combine image cosine (0..1) with text overlap into a 0..100 score."""
+    txt = text_similarity(text_a, text_b)
+    return (IMAGE_WEIGHT * image_cos + TEXT_WEIGHT * txt) * 100.0
+
+
+def _item_text(row: dict) -> str:
+    """The searchable text for an item: category + description + any OCR text
+    read off it (brand/label/number)."""
+    return (f"{row.get('category', '')} {row.get('description', '')} "
+            f"{row.get('ocr_text', '') or ''}")
 
 
 def _parse_embedding(raw) -> Optional[np.ndarray]:
@@ -330,7 +364,9 @@ async def ingest_found(item_id: str = Form(...)):
         if found_vec is not None:
             lvec = embedding_for_row(LOST_TABLE, lr)
             if lvec is not None:
-                score = cosine_similarity(found_vec, lvec) * 100.0
+                score = blended_score(
+                    cosine_similarity(found_vec, lvec),
+                    _item_text(found), _item_text(lr))
                 if same_building:
                     score = min(100.0, score + LOCATION_BOOST)
                 if score >= NOTIFY_THRESHOLD:
@@ -423,7 +459,9 @@ async def ingest_lost(item_id: str = Form(...)):
             fvec = embedding_for_row(FOUND_TABLE, fr)
             if fvec is None:
                 continue
-            score = cosine_similarity(lost_vec, fvec) * 100.0
+            score = blended_score(
+                cosine_similarity(lost_vec, fvec),
+                _item_text(lost), _item_text(fr))
             if same_building:
                 score = min(100.0, score + LOCATION_BOOST)
         elif same_building and lost_category and \

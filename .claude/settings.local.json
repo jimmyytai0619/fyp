@@ -45,7 +45,10 @@
       "Bash(curl -s --max-time 5 http://127.0.0.1:8000/openapi.json)",
       "Bash(flutter build *)",
       "Bash(ipconfig)",
-      "Bash(explorer.exe \"C:\\\\Users\\\\jimmy\\\\OneDrive\\\\Desktop\\\\fyp\\\\build\\\\app\\\\outputs\\\\flutter-apk\")"
+      "Bash(explorer.exe \"C:\\\\Users\\\\jimmy\\\\OneDrive\\\\Desktop\\\\fyp\\\\build\\\\app\\\\outputs\\\\flutter-apk\")",
+      "Bash(git rev-list *)",
+      "Bash(awk '{print \"behind \\(their new commits\\): \"$1\"   ahead \\(your local commits\\): \"$2}')",
+      "Bash(git branch *)"
     ]
   }
 }

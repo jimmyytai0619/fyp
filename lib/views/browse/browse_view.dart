@@ -79,7 +79,8 @@ class _BrowseViewState extends State<BrowseView> {
                   });
                 }
 
-                if (vm.foundItems.isEmpty) {
+                final items = vm.filteredItems;
+                if (items.isEmpty) {
                   return _EmptyState(color: _orange);
                 }
 
@@ -92,8 +93,8 @@ class _BrowseViewState extends State<BrowseView> {
                     mainAxisSpacing: 12,
                     childAspectRatio: 0.78,
                   ),
-                  itemCount: vm.foundItems.length,
-                  itemBuilder: (_, i) => _ItemCard(item: vm.foundItems[i]),
+                  itemCount: items.length,
+                  itemBuilder: (_, i) => _ItemCard(item: items[i]),
                 );
               },
             ),
@@ -190,42 +191,138 @@ class _CategoryFilterBar extends StatelessWidget {
         return Container(
           color: Colors.white,
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-          child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              children: vm.categories.map((cat) {
-                final isSelected = vm.selectedCategory == cat;
-                return Padding(
-                  padding: const EdgeInsets.only(right: 8),
-                  child: ChoiceChip(
-                    label: Text(cat),
-                    selected: isSelected,
-                    onSelected: (_) => vm.setCategory(cat),
-                    selectedColor: primaryColor,
-                    backgroundColor: const Color(0xFFF0F4FF),
-                    labelStyle: TextStyle(
-                      color: isSelected ? Colors.white : const Color(0xFF37474F),
-                      fontWeight: FontWeight.w600,
-                      fontSize: 13,
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(20),
-                      side: BorderSide(
-                        color: isSelected
-                            ? primaryColor
-                            : Colors.grey.shade300,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: vm.categories.map((cat) {
+                    final isSelected = vm.selectedCategory == cat;
+                    return Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: ChoiceChip(
+                        label: Text(cat),
+                        selected: isSelected,
+                        onSelected: (_) => vm.setCategory(cat),
+                        selectedColor: primaryColor,
+                        backgroundColor: const Color(0xFFF0F4FF),
+                        labelStyle: TextStyle(
+                          color: isSelected
+                              ? Colors.white
+                              : const Color(0xFF37474F),
+                          fontWeight: FontWeight.w600,
+                          fontSize: 13,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(20),
+                          side: BorderSide(
+                            color: isSelected
+                                ? primaryColor
+                                : Colors.grey.shade300,
+                          ),
+                        ),
+                        showCheckmark: false,
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 6),
                       ),
+                    );
+                  }).toList(),
+                ),
+              ),
+              const SizedBox(height: 10),
+              // Building + date filters (applied over the loaded results).
+              Row(
+                children: [
+                  Expanded(
+                    child: _FilterDropdown(
+                      icon: Icons.apartment_rounded,
+                      value: vm.selectedBuilding,
+                      items: vm.buildings,
+                      onChanged: (v) => vm.setBuilding(v ?? 'All'),
                     ),
-                    showCheckmark: false,
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 12, vertical: 6),
                   ),
-                );
-              }).toList(),
-            ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _FilterDropdown(
+                      icon: Icons.event_rounded,
+                      value: _dateLabel(vm.maxAgeDays),
+                      items: const ['Any time', 'Last 7 days', 'Last 30 days'],
+                      onChanged: (v) => vm.setMaxAgeDays(_dateDays(v)),
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ),
         );
       },
+    );
+  }
+}
+
+String _dateLabel(int days) => switch (days) {
+      7 => 'Last 7 days',
+      30 => 'Last 30 days',
+      _ => 'Any time',
+    };
+
+int _dateDays(String? label) => switch (label) {
+      'Last 7 days' => 7,
+      'Last 30 days' => 30,
+      _ => 0,
+    };
+
+// ── Compact filter dropdown (building / date) ────────────────────────────────
+
+class _FilterDropdown extends StatelessWidget {
+  final IconData icon;
+  final String value;
+  final List<String> items;
+  final ValueChanged<String?> onChanged;
+
+  const _FilterDropdown({
+    required this.icon,
+    required this.value,
+    required this.items,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    // Guard: the building list can change on refetch — fall back to the first.
+    final safeValue = items.contains(value) ? value : items.first;
+    return Container(
+      height: 40,
+      padding: const EdgeInsets.symmetric(horizontal: 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF0F4FF),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.grey.shade300),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, size: 16, color: Colors.grey.shade600),
+          const SizedBox(width: 6),
+          Expanded(
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<String>(
+                isExpanded: true,
+                value: safeValue,
+                items: items
+                    .map((e) => DropdownMenuItem(
+                          value: e,
+                          child: Text(e,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(fontSize: 13)),
+                        ))
+                    .toList(),
+                onChanged: onChanged,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

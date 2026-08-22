@@ -42,6 +42,27 @@ class AppNotification {
   /// so it opens the Claims → Requests tab.
   bool get isHandoverVerified => type == 'handover_verified';
 
+  /// Two-party return: claimant is asked to confirm receipt (→ My Claims).
+  bool get isReturnPending => type == 'return_pending';
+
+  /// Two-party return: finder is told the claimant confirmed / denied receipt
+  /// (→ Requests).
+  bool get isReturnDecision =>
+      type == 'return_confirmed' || type == 'return_disputed';
+
+  /// Any claim-related alert that should open the Claims screen.
+  bool get isClaimRelated =>
+      isClaimRequest ||
+      isClaimDecision ||
+      isClaimReturned ||
+      isChatMessage ||
+      isHandoverVerified ||
+      isReturnPending ||
+      isReturnDecision;
+
+  /// Alerts aimed at the finder open the Requests tab; the rest open My Claims.
+  bool get opensFinderTab => isClaimRequest || isHandoverVerified || isReturnDecision;
+
   AppNotification copyWith({bool? isRead}) {
     return AppNotification(
       id: id,

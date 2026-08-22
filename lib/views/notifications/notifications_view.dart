@@ -39,18 +39,13 @@ class _NotificationsViewState extends State<NotificationsView> {
       BuildContext context, NotificationsViewModel vm, AppNotification n) async {
     if (!n.isRead) vm.markAsRead(n.id);
 
-    if (n.isClaimRequest ||
-        n.isClaimDecision ||
-        n.isClaimReturned ||
-        n.isChatMessage ||
-        n.isHandoverVerified) {
+    if (n.isClaimRelated) {
       // Finder-facing alerts open Requests (1); claimant-facing open My Claims (0).
-      final finderTab = n.isClaimRequest || n.isHandoverVerified;
       Navigator.of(context).push(
         MaterialPageRoute(
           builder: (_) => ChangeNotifierProvider(
             create: (_) => ClaimsViewModel(),
-            child: ClaimsView(initialTab: finderTab ? 1 : 0),
+            child: ClaimsView(initialTab: n.opensFinderTab ? 1 : 0),
           ),
         ),
       );

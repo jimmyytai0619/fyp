@@ -155,6 +155,7 @@ class ReportItemViewModel extends ChangeNotifier {
           tags: tagList,
           securityQuestion: securityQuestion?.trim(),
           securityAnswer: securityAnswer?.trim(),
+          ocrText: _classification?.possibleBrand, // OCR text read off the item
         );
         // Fire the background matching agent (FR 4.3). Best-effort.
         try {

@@ -2,11 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../viewmodels/analytics_viewmodel.dart';
 import '../../viewmodels/browse_viewmodel.dart';
 import '../../viewmodels/claims_viewmodel.dart';
 import '../../viewmodels/manage_records_viewmodel.dart';
 import '../../viewmodels/notifications_viewmodel.dart';
 import '../../viewmodels/profile_viewmodel.dart';
+import '../analytics/analytics_view.dart';
 import '../browse/browse_view.dart';
 import '../claims/claims_view.dart';
 import '../manage_records/manage_records_view.dart';
@@ -247,6 +249,21 @@ class _HomeTab extends StatelessWidget {
                         builder: (_) => ChangeNotifierProvider(
                           create: (_) => BrowseViewModel(),
                           child: const BrowseView(),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  _RectActionCard(
+                    icon: Icons.insights_rounded,
+                    label: 'Insights & Analytics',
+                    description: 'Categories, hotspots and return rate',
+                    color: const Color(0xFF00897B),
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => ChangeNotifierProvider(
+                          create: (_) => AnalyticsViewModel(),
+                          child: const AnalyticsView(),
                         ),
                       ),
                     ),

@@ -717,6 +717,19 @@ class _MatchCard extends StatelessWidget {
 
                     const SizedBox(height: 8),
 
+                    // Visual confidence gauge so users can judge match strength.
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(4),
+                      child: LinearProgressIndicator(
+                        value: (item.confidenceScore / 100).clamp(0.0, 1.0),
+                        minHeight: 6,
+                        backgroundColor: const Color(0xFFECEFF1),
+                        valueColor: AlwaysStoppedAnimation<Color>(_badgeColor),
+                      ),
+                    ),
+
+                    const SizedBox(height: 8),
+
                     Text(
                       item.category,
                       style: const TextStyle(

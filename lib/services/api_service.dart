@@ -31,6 +31,7 @@ class ApiService {
     required List<String> tags,
     String? securityQuestion,
     String? securityAnswer,
+    String? ocrText,
   }) async {
     final userId = _client.auth.currentUser?.id;
     if (userId == null) throw Exception('User not authenticated.');
@@ -51,6 +52,9 @@ class ApiService {
       'tags': tags,
       'image_url': imageUrl,
       'security_question': securityQuestion,
+      'ocr_text': (ocrText != null && ocrText.trim().isNotEmpty)
+          ? ocrText.trim()
+          : null,
       'created_at': DateTime.now().toIso8601String(),
     }).select('id').single();
 
@@ -184,6 +188,17 @@ class ApiService {
     final res = await _client.rpc('mark_returned', params: {
       'p_claim_id': claimId,
       'p_evidence_url': evidenceUrl,
+    });
+    return res as String;
+  }
+
+  /// FR 5.5 — Claimant confirms (or denies) they received the item. A "yes"
+  /// finalises the return; a "no" flags it back to the finder.
+  /// Returns OK / DISPUTED / NOT_CLAIMANT / NOT_FOUND / NOT_AUTHENTICATED.
+  Future<String> confirmReturn(String claimId, bool received) async {
+    final res = await _client.rpc('confirm_return', params: {
+      'p_claim_id': claimId,
+      'p_received': received,
     });
     return res as String;
   }
