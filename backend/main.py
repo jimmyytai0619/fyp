@@ -162,10 +162,8 @@ def blended_score(image_cos: float, text_a: str, text_b: str) -> float:
 
 
 def _item_text(row: dict) -> str:
-    """The searchable text for an item: category + description + any OCR text
-    read off it (brand/label/number)."""
-    return (f"{row.get('category', '')} {row.get('description', '')} "
-            f"{row.get('ocr_text', '') or ''}")
+    """The searchable text for an item: category + description."""
+    return f"{row.get('category', '')} {row.get('description', '')}"
 
 
 def _parse_embedding(raw) -> Optional[np.ndarray]:

@@ -28,9 +28,6 @@ class Claim {
   final String itemImageUrl;
   final String itemLocation;
 
-  /// Text OCR read off the found item — shown to the finder as a claim-review aid.
-  final String? itemOcrText;
-
   const Claim({
     required this.id,
     required this.foundItemId,
@@ -44,7 +41,6 @@ class Claim {
     required this.itemCategory,
     required this.itemImageUrl,
     required this.itemLocation,
-    this.itemOcrText,
     this.returnEvidenceUrl,
     this.handoverVerified = false,
   });
@@ -69,7 +65,6 @@ class Claim {
       itemCategory: item['category'] as String? ?? 'Item',
       itemImageUrl: item['image_url'] as String? ?? '',
       itemLocation: item['location_found'] as String? ?? '',
-      itemOcrText: item['ocr_text'] as String?,
     );
   }
 }

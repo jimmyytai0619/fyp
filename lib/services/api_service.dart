@@ -31,7 +31,6 @@ class ApiService {
     required List<String> tags,
     String? securityQuestion,
     String? securityAnswer,
-    String? ocrText,
   }) async {
     final userId = _client.auth.currentUser?.id;
     if (userId == null) throw Exception('User not authenticated.');
@@ -51,9 +50,6 @@ class ApiService {
       'tags': tags,
       'image_url': imageUrl,
       'security_question': securityQuestion,
-      'ocr_text': (ocrText != null && ocrText.trim().isNotEmpty)
-          ? ocrText.trim()
-          : null,
       'created_at': DateTime.now().toIso8601String(),
     }).select('id').single();
 

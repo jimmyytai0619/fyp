@@ -48,7 +48,16 @@
       "Bash(explorer.exe \"C:\\\\Users\\\\jimmy\\\\OneDrive\\\\Desktop\\\\fyp\\\\build\\\\app\\\\outputs\\\\flutter-apk\")",
       "Bash(git rev-list *)",
       "Bash(awk '{print \"behind \\(their new commits\\): \"$1\"   ahead \\(your local commits\\): \"$2}')",
-      "Bash(git branch *)"
+      "Bash(git branch *)",
+      "Bash(git merge *)",
+      "Bash(mkdir -p /c/Users/jimmy/AppData/Local/Temp/claude/C--Users-jimmy-OneDrive-Desktop-fyp/f69054b5-6653-455b-b298-1a85276d3ae0/scratchpad/ppt_build)",
+      "Read(//c/Users/jimmy/AppData/Local/Temp/claude/C--Users-jimmy-OneDrive-Desktop-fyp/f69054b5-6653-455b-b298-1a85276d3ae0/scratchpad/**)",
+      "Bash(npm init *)",
+      "Bash(npm install *)",
+      "Bash(node -e \"require\\('pptxgenjs'\\); console.log\\('pptxgenjs ready'\\)\")",
+      "Read(//c/Users/jimmy/AppData/Local/Temp/claude/C--Users-jimmy-OneDrive-Desktop-fyp/f69054b5-6653-455b-b298-1a85276d3ae0/scratchpad/ppt_build/**)",
+      "Bash(node generate.js)",
+      "Bash(python -c ' *)"
     ]
   }
 }

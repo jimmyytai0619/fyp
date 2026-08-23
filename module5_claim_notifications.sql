@@ -27,10 +27,6 @@ alter table public.claims add column if not exists return_evidence_url text;
 --     (set automatically on a completed return, or manually by the owner).
 alter table public.lost_items add column if not exists is_resolved boolean default false;
 
--- 1e. Text the app's OCR read off the found item (brand/label/number). Shown to
---     the finder as a verification aid and blended into AI matching.
-alter table public.found_items add column if not exists ocr_text text;
-
 -- 2. Recreate submit_claim with the finder notification on a passed quiz.
 create or replace function public.submit_claim(p_item_id uuid, p_answer text)
 returns text

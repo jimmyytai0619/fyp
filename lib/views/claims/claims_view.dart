@@ -189,32 +189,6 @@ class _ClaimCard extends StatelessWidget {
               ),
             ],
           ),
-          // Finder aid: text the AI read off the item, to cross-check a claim.
-          if (asFinder && (claim.itemOcrText ?? '').trim().isNotEmpty) ...[
-            const SizedBox(height: 10),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-              decoration: BoxDecoration(
-                color: const Color(0xFFF3E5F5),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.document_scanner_outlined,
-                      size: 15, color: Color(0xFF6A1B9A)),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: Text(
-                      'Detected on item: "${claim.itemOcrText!.trim()}"',
-                      style: const TextStyle(
-                          fontSize: 12, color: Color(0xFF6A1B9A)),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
           const SizedBox(height: 12),
           _actions(context),
         ],

@@ -424,32 +424,20 @@ class _ReportItemViewState extends State<ReportItemView> {
   // ── AI auto-classification (Modules 2 & 3, Algorithm 4.7.1) ───────────────
 
   /// Applies the AI result according to its confidence tier:
-  ///  - HIGH (>=75%): auto-fill category + description (+ colour/brand tags)
+  ///  - HIGH (>=75%): auto-fill category + description
   ///  - MEDIUM (50-75%): user picks from suggested category chips
   ///  - LOW (<50%): nothing auto-filled; the user enters details manually
   void _applySuggestion(ReportItemViewModel vm) {
     final c = vm.classification;
     if (c == null || !mounted) return;
     if (c.isHigh) {
-      setState(
-        () => _fillFromAi(
-          c.category,
-          c.description,
-          c.colorName,
-          c.possibleBrand,
-        ),
-      );
+      setState(() => _fillFromAi(c.category, c.description));
     }
     // medium/low: wait for the user (chips / manual dropdown)
   }
 
   /// Commits an AI category + description into the form fields.
-  void _fillFromAi(
-    String category,
-    String description,
-    String colorName,
-    String? brand,
-  ) {
+  void _fillFromAi(String category, String description) {
     if (ClassificationService.categories.contains(category)) {
       _selectedCategory = category;
       _selectedQuestion = null; // question list depends on category
@@ -462,14 +450,7 @@ class _ReportItemViewState extends State<ReportItemView> {
   /// Medium-tier: the user taps one of the suggested category chips.
   void _chooseSuggestion(ReportItemViewModel vm, CategorySuggestion sug) {
     final c = vm.classification;
-    setState(
-      () => _fillFromAi(
-        sug.category,
-        c?.description ?? '',
-        c?.colorName ?? 'Unknown',
-        c?.possibleBrand,
-      ),
-    );
+    setState(() => _fillFromAi(sug.category, c?.description ?? ''));
   }
 
   Widget _aiSuggestionSection(ReportItemViewModel vm) {
@@ -539,8 +520,6 @@ class _ReportItemViewState extends State<ReportItemView> {
     if (c.colorName != 'Unknown')
       _chip(Icons.palette_outlined, c.colorName, swatchHex: c.colorHex),
     if (c.material != null) _chip(Icons.texture_rounded, c.material as String),
-    if (c.possibleBrand != null)
-      _chip(Icons.sell_outlined, 'Brand? ${c.possibleBrand}'),
   ];
 
   // HIGH (>=75%) — auto-filled, green.
@@ -604,20 +583,17 @@ class _ReportItemViewState extends State<ReportItemView> {
                 ),
             ],
           ),
-          if (c.colorName != 'Unknown' || c.possibleBrand != null) ...[
+          if (c.colorName != 'Unknown') ...[
             const SizedBox(height: 10),
             Wrap(
               spacing: 8,
               runSpacing: 8,
               children: [
-                if (c.colorName != 'Unknown')
-                  _chip(
-                    Icons.palette_outlined,
-                    c.colorName as String,
-                    swatchHex: c.colorHex as String,
-                  ),
-                if (c.possibleBrand != null)
-                  _chip(Icons.sell_outlined, 'Brand? ${c.possibleBrand}'),
+                _chip(
+                  Icons.palette_outlined,
+                  c.colorName as String,
+                  swatchHex: c.colorHex as String,
+                ),
               ],
             ),
           ],

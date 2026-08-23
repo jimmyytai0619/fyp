@@ -23,8 +23,6 @@ alter table public.notifications add column if not exists item_id uuid;
 alter table public.claims add column if not exists return_evidence_url text;
 -- Lets a loser close a lost report so it stops generating match alerts.
 alter table public.lost_items add column if not exists is_resolved boolean default false;
--- Text OCR read off the found item (brand/label/number) — finder aid + matching.
-alter table public.found_items add column if not exists ocr_text text;
 
 -- 2. Secret answers — locked down so ONLY the finder can read them.
 --    Claimants can never select this table (Zero-Trust).

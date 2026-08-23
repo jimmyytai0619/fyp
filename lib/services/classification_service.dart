@@ -5,7 +5,6 @@ import 'dart:ui' as ui;
 import 'package:flutter/foundation.dart' show debugPrint, kDebugMode;
 import 'package:flutter/painting.dart' show FileImage;
 import 'package:google_mlkit_image_labeling/google_mlkit_image_labeling.dart';
-import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
 import 'package:palette_generator/palette_generator.dart';
 
 /// Confidence tier for a classification, per Algorithm 4.7.1 in the FYP report.
@@ -39,7 +38,6 @@ class ClassificationResult {
     required this.material,
     required this.description,
     required this.suggestions,
-    required this.possibleBrand,
   });
 
   final ConfidenceTier tier;
@@ -59,9 +57,6 @@ class ClassificationResult {
 
   /// Distinct category suggestions for the medium tier.
   final List<CategorySuggestion> suggestions;
-
-  /// Text read off the item via OCR, surfaced as a possible brand/logo (FR 2.6).
-  final String? possibleBrand;
 
   bool get isHigh => tier == ConfidenceTier.high;
   bool get isMedium => tier == ConfidenceTier.medium;
@@ -83,24 +78,21 @@ class ClassificationResult {
     material: null,
     description: '',
     suggestions: const [],
-    possibleBrand: null,
   );
 }
 
-/// Wraps Google ML Kit image labeling, text recognition (OCR), and dominant
-/// colour extraction. Runs fully on-device. Call [dispose] when the owning
-/// ViewModel is torn down to release the native detectors.
+/// Wraps Google ML Kit image labeling and dominant colour extraction. Runs
+/// fully on-device. Call [dispose] when the owning ViewModel is torn down to
+/// release the native detector.
 class ClassificationService {
-  ClassificationService({ImageLabeler? labeler, TextRecognizer? textRecognizer})
+  ClassificationService({ImageLabeler? labeler})
     : _labeler =
           labeler ??
           ImageLabeler(
             options: ImageLabelerOptions(confidenceThreshold: labelThreshold),
-          ),
-      _textRecognizer = textRecognizer ?? TextRecognizer();
+          );
 
   final ImageLabeler _labeler;
-  final TextRecognizer _textRecognizer;
 
   /// Low bar so more candidate labels are returned for category mapping — the
   /// final tier is still gated by the high/medium thresholds below, so this
@@ -145,13 +137,11 @@ class ClassificationService {
       // Colour is a helpful attribute, but it must never cancel a successful
       // category classification for an unusual image size/orientation.
     }
-    final brand = await _detectBrand(imageFile);
-
     if (labels.isEmpty) {
       return ClassificationResult.unrecognized(
         colorName: colorName,
         colorHex: hex,
-      ).copyWithBrand(brand);
+      );
     }
 
     // NEW HEURISTIC: Instead of just taking the top label (which might be generic
@@ -216,7 +206,6 @@ class ClassificationService {
       material: material,
       description: tier == ConfidenceTier.low ? '' : description,
       suggestions: suggestions,
-      possibleBrand: brand,
     );
   }
 
@@ -230,38 +219,6 @@ class ClassificationService {
     final labels = await _labeler.processImage(InputImage.fromFile(file));
     labels.sort((a, b) => b.confidence.compareTo(a.confidence));
     return labels;
-  }
-
-  /// OCR: returns the most plausible brand/logo token found on the item, or null.
-  Future<String?> _detectBrand(File file) async {
-    try {
-      final recognized = await _textRecognizer.processImage(
-        InputImage.fromFile(file),
-      );
-      for (final block in recognized.blocks) {
-        for (final line in block.lines) {
-          final t = line.text.trim();
-          final normalized = t
-              .toLowerCase()
-              .replaceAll(RegExp(r'[^a-z0-9]+'), ' ')
-              .trim();
-          for (final entry in _knownBrands.entries) {
-            final pattern = RegExp(
-              '(^| )${RegExp.escape(entry.key)}( |\$)',
-              caseSensitive: false,
-            );
-            if (pattern.hasMatch(normalized)) {
-              return entry.value;
-            }
-          }
-        }
-      }
-      // Unknown OCR text is deliberately not guessed as a brand. This avoids
-      // surfacing phrases such as "MAIN LIBRARY" or "MADE IN CHINA".
-      return null;
-    } catch (_) {
-      return null; // OCR is best-effort
-    }
   }
 
   /// Folds a fine-grained ML Kit label into one of SmartMatch's standardized categories.
@@ -689,49 +646,7 @@ class ClassificationService {
     'Magenta': 0xC71585,
   };
 
-  /// Conservative OCR allow-list. It is better to omit an unknown brand than
-  /// to present arbitrary packaging/location text as a confident brand guess.
-  static const Map<String, String> _knownBrands = {
-    'acer': 'Acer',
-    'adidas': 'Adidas',
-    'apple': 'Apple',
-    'asus': 'ASUS',
-    'casio': 'Casio',
-    'dell': 'Dell',
-    'huawei': 'Huawei',
-    'hydro flask': 'Hydro Flask',
-    'jbl': 'JBL',
-    'lenovo': 'Lenovo',
-    'logitech': 'Logitech',
-    'nike': 'Nike',
-    'oppo': 'OPPO',
-    'puma': 'Puma',
-    'samsung': 'Samsung',
-    'sony': 'Sony',
-    'thermos': 'Thermos',
-    'tupperware': 'Tupperware',
-    'uniqlo': 'Uniqlo',
-    'vivo': 'vivo',
-    'xiaomi': 'Xiaomi',
-  };
-
   Future<void> dispose() async {
     await _labeler.close();
-    await _textRecognizer.close();
   }
-}
-
-extension on ClassificationResult {
-  ClassificationResult copyWithBrand(String? brand) => ClassificationResult(
-    tier: tier,
-    category: category,
-    confidence: confidence,
-    rawLabel: rawLabel,
-    colorName: colorName,
-    colorHex: colorHex,
-    material: material,
-    description: description,
-    suggestions: suggestions,
-    possibleBrand: brand,
-  );
 }

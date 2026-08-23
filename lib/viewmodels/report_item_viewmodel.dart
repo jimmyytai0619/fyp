@@ -31,7 +31,6 @@ class ReportItemViewModel extends ChangeNotifier {
   List<CategorySuggestion> get suggestions =>
       _classification?.suggestions ?? const [];
   String get generatedDescription => _classification?.description ?? '';
-  String? get possibleBrand => _classification?.possibleBrand;
   String get colorName => _classification?.colorName ?? 'Unknown';
 
   void _setLoading(bool v) {
@@ -165,7 +164,6 @@ class ReportItemViewModel extends ChangeNotifier {
           tags: tagList,
           securityQuestion: securityQuestion?.trim(),
           securityAnswer: securityAnswer?.trim(),
-          ocrText: _classification?.possibleBrand, // OCR text read off the item
         );
         // Fire the background matching agent (FR 4.3). Best-effort.
         try {
