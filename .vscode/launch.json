@@ -1,0 +1,18 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "SmartMatch (Phone — LAN backend)",
+      "request": "launch",
+      "type": "dart",
+      "program": "lib/main.dart",
+      "args": ["--dart-define=AI_BACKEND_URL=http://192.168.0.17:8000"]
+    },
+    {
+      "name": "SmartMatch (Emulator — 10.0.2.2 backend)",
+      "request": "launch",
+      "type": "dart",
+      "program": "lib/main.dart"
+    }
+  ]
+}

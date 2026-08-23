@@ -52,6 +52,11 @@ SAME_BUILDING_MATCH_SCORE = float(os.getenv("SAME_BUILDING_MATCH_SCORE", "60"))
 # the two items' descriptions/categories so wording ("black Nike bottle") helps.
 IMAGE_WEIGHT = float(os.getenv("IMAGE_WEIGHT", "0.8"))
 TEXT_WEIGHT = float(os.getenv("TEXT_WEIGHT", "0.2"))
+# Search category filter: a BOOST, not an exclusion. The finder and the loser
+# often categorize the same physical object differently (e.g. a power bank as
+# "Electronics" vs "Other"), so a hard filter can hide a real, visually-matching
+# item entirely. Matching category nudges the score up instead.
+CATEGORY_BOOST = float(os.getenv("CATEGORY_BOOST", "10"))
 FOUND_TABLE = "found_items"
 LOST_TABLE = "lost_items"
 
@@ -240,7 +245,9 @@ async def search(
     list of matches at or above the configured match-score threshold.
 
     Relevance controls:
-      • category — optional hard filter (only compare items of the same type)
+      • category — optional soft boost (never excludes — the finder and loser
+        often categorize the same physical item differently, so a mismatch
+        must not hide a real, visually-matching item)
       • top_k    — cap on how many of the best matches are returned
     """
     if supabase is None:
@@ -252,23 +259,28 @@ async def search(
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Invalid image: {e}")
 
-    # 2. Fetch found items, optionally hard-filtered by category
+    want_category = category.strip().lower() if category else ""
+    if want_category in ("any", "all"):
+        want_category = ""
+
+    # 2. Fetch ALL found items — category no longer excludes candidates.
     try:
-        query = supabase.table(FOUND_TABLE).select("*")
-        if category and category.lower() not in ("", "any", "all"):
-            query = query.eq("category", category)
-        rows = query.execute().data or []
+        rows = supabase.table(FOUND_TABLE).select("*").execute().data or []
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Database error: {e}")
 
     # 3. Score each item (lazy-indexing any item without a cached vector)
     matches = []
+    scored = []  # every item's score, for the console log below — even rejects
     for row in rows:
         vec = embedding_for_row(FOUND_TABLE, row)
         if vec is None:
             continue
 
         score = cosine_similarity(query_vec, vec) * 100.0  # 0–100 similarity scale
+        if want_category and (row.get("category") or "").strip().lower() == want_category:
+            score = min(100.0, score + CATEGORY_BOOST)
+        scored.append((round(score, 1), row.get("category"), row.get("id")))
         if score >= MATCH_THRESHOLD:
             matches.append(
                 {
@@ -287,6 +299,15 @@ async def search(
     matches.sort(key=lambda m: m["confidence_score"], reverse=True)
     if top_k > 0:
         matches = matches[:top_k]
+
+    # Log every candidate's score (not just the ones that passed) so a "no
+    # match" can be diagnosed: borderline-but-filtered vs. genuinely dissimilar.
+    scored.sort(key=lambda s: s[0], reverse=True)
+    print(f"[search] {len(scored)} found item(s) scored, threshold={MATCH_THRESHOLD}:")
+    for score, cat, item_id in scored[:10]:
+        flag = "PASS" if score >= MATCH_THRESHOLD else "below"
+        print(f"    {score:5.1f}%  [{flag}]  {cat}  {item_id}")
+
     return {"matches": matches, "count": len(matches)}
 
 
@@ -355,27 +376,30 @@ async def ingest_found(item_id: str = Form(...)):
         same_category = bool(found_category) and \
             (lr.get("category") or "").strip().lower() == found_category
 
-        alert = False
-        score = 0.0
-
-        # (a) Visual match, boosted when it's the same building.
+        # Visual match, boosted (never excluded) by same building / same
+        # category — a mismatch on either must not hide a real photo match,
+        # since the finder and loser often log the building or category
+        # slightly differently for the same physical item.
         if found_vec is not None:
             lvec = embedding_for_row(LOST_TABLE, lr)
-            if lvec is not None:
-                score = blended_score(
-                    cosine_similarity(found_vec, lvec),
-                    _item_text(found), _item_text(lr))
-                if same_building:
-                    score = min(100.0, score + LOCATION_BOOST)
-                if score >= NOTIFY_THRESHOLD:
-                    alert = True
+            if lvec is None:
+                continue
+            score = blended_score(
+                cosine_similarity(found_vec, lvec),
+                _item_text(found), _item_text(lr))
+            if same_building:
+                score = min(100.0, score + LOCATION_BOOST)
+            if same_category:
+                score = min(100.0, score + CATEGORY_BOOST)
+        elif same_building and same_category:
+            # No usable photo at all: location + category is the only signal.
+            score = SAME_BUILDING_MATCH_SCORE
+        else:
+            continue
 
-        # (b) Location signal: same building + same category always alerts, even
-        #     if the photos don't match or the lost report has no photo.
-        if not alert and same_building and same_category:
-            alert = True
-            score = max(score, SAME_BUILDING_MATCH_SCORE)
-
+        # Alert on a strong photo score, OR on the strong building+category
+        # signal alone (even if that didn't push the score past NOTIFY_THRESHOLD).
+        alert = score >= NOTIFY_THRESHOLD or (same_building and same_category)
         if not alert:
             continue
 
@@ -452,8 +476,13 @@ async def ingest_lost(item_id: str = Form(...)):
         same_building = bool(lost_building) and \
             building_of(fr.get("location_found")) == lost_building
 
+        same_category = bool(lost_category) and \
+            (fr.get("category") or "").strip().lower() == lost_category
+
         if lost_vec is not None:
-            # Image available: score by visual similarity, boosted if same building.
+            # Image available: score by visual similarity, boosted (never
+            # excluded) by same building / same category — a mismatch on
+            # either must not hide a real photo match.
             fvec = embedding_for_row(FOUND_TABLE, fr)
             if fvec is None:
                 continue
@@ -462,8 +491,9 @@ async def ingest_lost(item_id: str = Form(...)):
                 _item_text(lost), _item_text(fr))
             if same_building:
                 score = min(100.0, score + LOCATION_BOOST)
-        elif same_building and lost_category and \
-                (fr.get("category") or "").strip().lower() == lost_category:
+            if same_category:
+                score = min(100.0, score + CATEGORY_BOOST)
+        elif same_building and same_category:
             # No photo on the lost report: fall back to same building + same
             # category as the only signal available.
             score = SAME_BUILDING_MATCH_SCORE
