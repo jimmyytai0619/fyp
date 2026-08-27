@@ -121,10 +121,15 @@ class ClassificationService {
   ];
 
   Future<ClassificationResult> classify(File imageFile) async {
-    final labels = await _labelImage(imageFile);
+    final passes = await _labelImagePasses(imageFile);
+    final labels = _mergeLabels(passes.full, passes.object);
     if (kDebugMode) {
       debugPrint(
-        '[ClassificationService] labels: ${labels.take(10).map((l) => '${l.label} ${(l.confidence * 100).toStringAsFixed(0)}%').join(', ')}',
+        '[ClassificationService] full labels: ${_formatLabels(passes.full)}',
+      );
+      debugPrint(
+        '[ClassificationService] center-object labels: '
+        '${_formatLabels(passes.object)}',
       );
     }
     var hex = '#9E9E9E';
@@ -144,10 +149,10 @@ class ClassificationService {
       );
     }
 
-    // NEW HEURISTIC: Instead of just taking the top label (which might be generic
-    // like "Plastic" or "Object"), we look for the first label that maps to a
-    // specific campus category.
-    var top = labels.first;
+    // The report flow asks users to keep the item in the middle of the photo.
+    // Prefer a category found in that crop, where a face/room/background is much
+    // less likely to outrank a small item such as a key.
+    var top = _firstMappedLabel(passes.object) ?? labels.first;
     var category = mapLabelToCategory(top.label);
 
     if (category == 'Other') {
@@ -162,45 +167,81 @@ class ClassificationService {
       }
     }
 
+    // ML Kit's base model sometimes describes a close-up key by its parts
+    // instead of returning "Key": a narrow shaft as "Nail", the bow/hole as
+    // "Goggles", and the reflective body as "Tableware". Require all three
+    // independent shape cues before suggesting Keys & Lanyards.
+    final keyShapeScore = keyShapeEvidenceScore({
+      for (final label in passes.object)
+        label.label.toLowerCase(): label.confidence,
+    });
+    var effectiveConfidence = top.confidence;
+    var effectiveRawLabel = top.label;
+    var effectiveNoun = _itemNoun(top.label);
+    if (keyShapeScore != null && category != 'Keys & Lanyards') {
+      category = 'Keys & Lanyards';
+      effectiveConfidence = keyShapeScore;
+      effectiveRawLabel = 'key-shape evidence';
+      effectiveNoun = 'key';
+      if (kDebugMode) {
+        debugPrint(
+          '[ClassificationService] key-shape evidence: '
+          '${(keyShapeScore * 100).toStringAsFixed(0)}%',
+        );
+      }
+    }
+
     // A generic label such as "object" can be highly confident without giving
     // us a trustworthy SmartMatch category. Never auto-fill "Other" solely
     // because ML Kit was confident about that generic source label.
     final tier = category == 'Other'
         ? ConfidenceTier.low
-        : _tierFor(top.confidence);
+        : _tierFor(effectiveConfidence);
     final material = _inferMaterial(labels);
     final subFeatures = _inferSubFeatures(labels);
 
     // Build distinct category suggestions (used by the medium tier).
     final seen = <String>{};
     final suggestions = <CategorySuggestion>[];
-    for (final l in labels) {
-      if (l.confidence < mediumThreshold) continue;
-      final cat = mapLabelToCategory(l.label);
-      if (cat != 'Other' && seen.add(cat)) {
-        suggestions.add(
-          CategorySuggestion(
-            category: cat,
-            confidence: l.confidence,
-            rawLabel: l.label,
-          ),
-        );
+    if (keyShapeScore != null) {
+      seen.add('Keys & Lanyards');
+      suggestions.add(
+        CategorySuggestion(
+          category: 'Keys & Lanyards',
+          confidence: keyShapeScore,
+          rawLabel: 'key-shape evidence',
+        ),
+      );
+    }
+    if (keyShapeScore == null) {
+      for (final l in labels) {
+        if (l.confidence < mediumThreshold) continue;
+        final cat = mapLabelToCategory(l.label);
+        if (cat != 'Other' && seen.add(cat)) {
+          suggestions.add(
+            CategorySuggestion(
+              category: cat,
+              confidence: l.confidence,
+              rawLabel: l.label,
+            ),
+          );
+        }
+        if (suggestions.length >= 3) break;
       }
-      if (suggestions.length >= 3) break;
     }
 
     final description = _buildDescription(
       colorName: colorName,
       material: material,
-      noun: _itemNoun(top.label),
+      noun: effectiveNoun,
       subFeatures: subFeatures,
     );
 
     return ClassificationResult(
       tier: tier,
       category: category,
-      confidence: top.confidence,
-      rawLabel: top.label,
+      confidence: effectiveConfidence,
+      rawLabel: effectiveRawLabel,
       colorName: colorName,
       colorHex: hex,
       material: material,
@@ -220,6 +261,211 @@ class ClassificationService {
     labels.sort((a, b) => b.confidence.compareTo(a.confidence));
     return labels;
   }
+
+  Future<({List<ImageLabel> full, List<ImageLabel> object})> _labelImagePasses(
+    File file,
+  ) async {
+    final full = await _labelImage(file);
+    final crops = <File>[];
+    try {
+      final objectPasses = <List<ImageLabel>>[];
+      for (final turns in const [0, 1, 3]) {
+        final crop = await _createCenterObjectCrop(file, quarterTurns: turns);
+        crops.add(crop);
+        final labels = await _labelImage(crop);
+        objectPasses.add(labels);
+        if (kDebugMode) {
+          debugPrint(
+            '[ClassificationService] center rotation ${turns * 90}° labels: '
+            '${_formatLabels(labels)}',
+          );
+        }
+        if (labels.any(
+          (label) =>
+              label.confidence >= mediumThreshold &&
+              mapLabelToCategory(label.label) == 'Keys & Lanyards',
+        )) {
+          break;
+        }
+      }
+      return (full: full, object: _mergeLabelGroups(objectPasses));
+    } catch (error) {
+      if (kDebugMode) {
+        debugPrint('[ClassificationService] center crop skipped: $error');
+      }
+      return (full: full, object: <ImageLabel>[]);
+    } finally {
+      for (final crop in crops) {
+        try {
+          await crop.delete();
+        } catch (_) {
+          // A temporary crop must never make classification fail.
+        }
+      }
+    }
+  }
+
+  /// Creates a portrait-friendly crop covering the middle 70% x 80% of the
+  /// image. This removes most faces, hands and room background while retaining
+  /// the item the capture UI asks the user to centre. Rotated variants make the
+  /// labeler less sensitive to keys photographed vertically or upside-down.
+  Future<File> _createCenterObjectCrop(
+    File file, {
+    int quarterTurns = 0,
+  }) async {
+    final codec = await ui.instantiateImageCodec(await file.readAsBytes());
+    final frame = await codec.getNextFrame();
+    final sourceImage = frame.image;
+    try {
+      final source = ui.Rect.fromLTWH(
+        sourceImage.width * 0.15,
+        sourceImage.height * 0.05,
+        sourceImage.width * 0.70,
+        sourceImage.height * 0.80,
+      );
+      const naturalWidth = 700;
+      final naturalHeight = math.max(
+        1,
+        (naturalWidth * source.height / source.width).round(),
+      );
+      final turns = quarterTurns % 4;
+      final outputWidth = turns.isOdd ? naturalHeight : naturalWidth;
+      final outputHeight = turns.isOdd ? naturalWidth : naturalHeight;
+      final recorder = ui.PictureRecorder();
+      final canvas = ui.Canvas(recorder);
+      switch (turns) {
+        case 1:
+          canvas
+            ..translate(outputWidth.toDouble(), 0)
+            ..rotate(math.pi / 2);
+        case 2:
+          canvas
+            ..translate(outputWidth.toDouble(), outputHeight.toDouble())
+            ..rotate(math.pi);
+        case 3:
+          canvas
+            ..translate(0, outputHeight.toDouble())
+            ..rotate(-math.pi / 2);
+      }
+      canvas.drawImageRect(
+        sourceImage,
+        source,
+        ui.Rect.fromLTWH(
+          0,
+          0,
+          naturalWidth.toDouble(),
+          naturalHeight.toDouble(),
+        ),
+        ui.Paint()..filterQuality = ui.FilterQuality.high,
+      );
+      final cropped = await recorder.endRecording().toImage(
+        outputWidth,
+        outputHeight,
+      );
+      try {
+        final bytes = await cropped.toByteData(format: ui.ImageByteFormat.png);
+        if (bytes == null) throw StateError('Could not encode object crop');
+        final path =
+            '${Directory.systemTemp.path}${Platform.pathSeparator}'
+            'smartmatch_object_${turns}_'
+            '${DateTime.now().microsecondsSinceEpoch}.png';
+        return File(path).writeAsBytes(bytes.buffer.asUint8List(), flush: true);
+      } finally {
+        cropped.dispose();
+      }
+    } finally {
+      sourceImage.dispose();
+      codec.dispose();
+    }
+  }
+
+  ImageLabel? _firstMappedLabel(List<ImageLabel> labels) {
+    // If the centre crop contains an explicit key/lock label, keep it even if
+    // a secondary label such as "glasses" is slightly more confident.
+    for (final label in labels) {
+      if (label.confidence >= mediumThreshold &&
+          mapLabelToCategory(label.label) == 'Keys & Lanyards') {
+        return label;
+      }
+    }
+    for (final label in labels) {
+      if (mapLabelToCategory(label.label) != 'Other') return label;
+    }
+    return null;
+  }
+
+  List<ImageLabel> _mergeLabels(
+    List<ImageLabel> full,
+    List<ImageLabel> object,
+  ) {
+    final byName = <String, ImageLabel>{};
+    for (final label in [...object, ...full]) {
+      final key = label.label.trim().toLowerCase();
+      final old = byName[key];
+      if (old == null || label.confidence > old.confidence) {
+        byName[key] = label;
+      }
+    }
+    final merged = byName.values.toList()
+      ..sort((a, b) => b.confidence.compareTo(a.confidence));
+    return merged;
+  }
+
+  List<ImageLabel> _mergeLabelGroups(List<List<ImageLabel>> groups) {
+    var merged = <ImageLabel>[];
+    for (final group in groups) {
+      merged = _mergeLabels(merged, group);
+    }
+    return merged;
+  }
+
+  /// Returns a conservative medium-tier score when three independent labels
+  /// describe the geometry of a key. Exposed only so the false-positive guards
+  /// can be regression-tested without the native ML Kit runtime.
+  @visibleForTesting
+  static double? keyShapeEvidenceScore(Map<String, double> evidence) {
+    double strongest(Iterable<String> names) {
+      var result = 0.0;
+      for (final entry in evidence.entries) {
+        final normalized = entry.key
+            .toLowerCase()
+            .replaceAll(RegExp(r'[^a-z0-9]+'), ' ')
+            .trim();
+        if (names.contains(normalized)) result = math.max(result, entry.value);
+      }
+      return result;
+    }
+
+    final shaft = strongest(const ['nail', 'needle']);
+    final bow = strongest(const [
+      'goggles',
+      'glasses',
+      'sunglasses',
+      'eyewear',
+    ]);
+    final reflectiveBody = strongest(const [
+      'tableware',
+      'metal',
+      'silver',
+      'hardware',
+    ]);
+    if (shaft < 0.30 || bow < 0.45 || reflectiveBody < 0.55) return null;
+
+    // This is an ensemble evidence score, not a probability. Keep it in the
+    // confirmation tier so the user must accept the suggested category.
+    return ((shaft + bow + reflectiveBody) / 3).clamp(
+      mediumThreshold,
+      highThreshold - 0.01,
+    );
+  }
+
+  String _formatLabels(List<ImageLabel> labels) => labels
+      .take(10)
+      .map(
+        (label) =>
+            '${label.label} ${(label.confidence * 100).toStringAsFixed(0)}%',
+      )
+      .join(', ');
 
   /// Folds a fine-grained ML Kit label into one of SmartMatch's standardized categories.
   static String mapLabelToCategory(String mlLabel) {
@@ -304,11 +550,15 @@ class ClassificationService {
 
     const keysAndLanyards = [
       'key',
+      'keys',
       'lanyard',
       'keychain',
+      'keyring',
       'car key',
       'house key',
       'fob',
+      'lock',
+      'padlock',
     ];
 
     const booksAndStationery = [
