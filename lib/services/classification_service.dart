@@ -1,11 +1,11 @@
 import 'dart:io';
 import 'dart:math' as math;
+import 'dart:typed_data';
 import 'dart:ui' as ui;
 
-import 'package:flutter/foundation.dart' show debugPrint, kDebugMode;
-import 'package:flutter/painting.dart' show FileImage;
+import 'package:flutter/foundation.dart'
+    show debugPrint, kDebugMode, visibleForTesting;
 import 'package:google_mlkit_image_labeling/google_mlkit_image_labeling.dart';
-import 'package:palette_generator/palette_generator.dart';
 
 /// Confidence tier for a classification, per Algorithm 4.7.1 in the FYP report.
 ///  - high   (>= 0.75): auto-fill category + description
@@ -474,94 +474,131 @@ class ClassificationService {
   }
 
   Future<(String, String)> _dominantColor(File file) async {
-    final codec = await ui.instantiateImageCodec(await file.readAsBytes());
+    // A small, fixed-size decode is sufficient for colour analysis and avoids
+    // processing millions of camera pixels on the UI isolate.
+    final codec = await ui.instantiateImageCodec(
+      await file.readAsBytes(),
+      targetWidth: 160,
+      targetHeight: 160,
+      allowUpscaling: false,
+    );
     final frame = await codec.getNextFrame();
     final decoded = frame.image;
-    final imageSize = ui.Size(
-      decoded.width.toDouble(),
-      decoded.height.toDouble(),
+    final byteData = await decoded.toByteData(
+      format: ui.ImageByteFormat.rawRgba,
     );
+    final width = decoded.width;
+    final height = decoded.height;
     decoded.dispose();
     codec.dispose();
 
-    final cropWidth = imageSize.width * 0.50;
-    final cropHeight = imageSize.height * 0.50;
-    final centerRegion = ui.Rect.fromLTWH(
-      (imageSize.width - cropWidth) / 2,
-      (imageSize.height - cropHeight) / 2,
-      cropWidth,
-      cropHeight,
+    if (byteData == null) return ('#9E9E9E', 'Unknown');
+    final color = extractCenterObjectColor(
+      byteData.buffer.asUint8List(
+        byteData.offsetInBytes,
+        byteData.lengthInBytes,
+      ),
+      width,
+      height,
     );
-    final palette = await PaletteGenerator.fromImageProvider(
-      FileImage(file),
-      size: imageSize,
-      // Lost-and-found photos normally place the item near the middle. Sampling
-      // the central half reduces the influence of tables, floors, and walls.
-      region: centerRegion,
-      maximumColorCount: 12,
-    );
-
-    final color = _pickRepresentativeColor(palette);
     if (color == null) return ('#9E9E9E', 'Unknown');
 
     final hex =
         '#${(color.toARGB32() & 0xFFFFFF).toRadixString(16).padLeft(6, '0').toUpperCase()}';
-    return (hex, _colorName(color.r, color.g, color.b));
+    final name = _colorName(color.r, color.g, color.b);
+    if (kDebugMode) {
+      debugPrint('[ClassificationService] center-object color: $name $hex');
+    }
+    return (hex, name);
   }
 
-  /// Chooses the colour that best represents the *object* rather than the
-  /// background. The plain dominant colour is often a dark surface/shadow, so
-  /// we score each swatch by how common AND how saturated it is — a clearly
-  /// coloured swatch with decent area beats a slightly larger grey/black one.
-  dynamic _pickRepresentativeColor(PaletteGenerator palette) {
-    final swatches = palette.paletteColors;
-    if (swatches.isEmpty) {
-      return palette.dominantColor?.color ??
-          (palette.colors.isEmpty ? null : palette.colors.first);
+  /// Extracts the main colour of an item expected near the middle of a photo.
+  ///
+  /// Pixels inside a central ellipse receive progressively more weight toward
+  /// the exact centre. Colours that also dominate the outer image border are
+  /// penalised because they are likely to be the table, floor, or wall behind
+  /// the item. Unlike the old palette heuristic, this does not favour saturated
+  /// colours, so neutral objects such as black phones and white cards are not
+  /// displaced by a small colourful background patch.
+  @visibleForTesting
+  static ui.Color? extractCenterObjectColor(
+    Uint8List rgba,
+    int width,
+    int height,
+  ) {
+    if (width <= 0 || height <= 0 || rgba.length < width * height * 4) {
+      return null;
     }
 
-    double bestScore = -1;
-    var best = swatches.first.color;
-    for (final sw in swatches) {
-      final c = sw.color;
-      final hsv = _toHsv(c.r, c.g, c.b);
-      final s = hsv.$2;
-      final v = hsv.$3;
+    final centreBuckets = <int, _WeightedColorBucket>{};
+    final borderWeights = <int, double>{};
+    final centreX = width / 2;
+    final centreY = height / 2;
+    final radiusX = math.max(1.0, width * 0.28);
+    final radiusY = math.max(1.0, height * 0.32);
+    final borderX = math.max(1, (width * 0.14).round());
+    final borderY = math.max(1, (height * 0.14).round());
 
-      // population (area) weighted
-      // boost by saturation (so a coloured swatch beats a neutral one)
-      // penalize very dark colors (v < 0.2) to avoid shadows/background being picked as "Black"
-      double score = sw.population * (0.35 + 0.65 * s);
-      if (v < 0.2) score *= 0.1;
+    int bucketKey(int r, int g, int b) =>
+        ((r >> 4) << 8) | ((g >> 4) << 4) | (b >> 4);
 
-      if (score > bestScore) {
-        bestScore = score;
-        best = c;
+    for (var y = 0; y < height; y++) {
+      for (var x = 0; x < width; x++) {
+        final offset = (y * width + x) * 4;
+        final alpha = rgba[offset + 3];
+        if (alpha < 32) continue;
+
+        final r = rgba[offset];
+        final g = rgba[offset + 1];
+        final b = rgba[offset + 2];
+        final key = bucketKey(r, g, b);
+
+        if (x < borderX ||
+            x >= width - borderX ||
+            y < borderY ||
+            y >= height - borderY) {
+          borderWeights[key] = (borderWeights[key] ?? 0) + 1;
+        }
+
+        final dx = (x + 0.5 - centreX) / radiusX;
+        final dy = (y + 0.5 - centreY) / radiusY;
+        final distanceSquared = dx * dx + dy * dy;
+        if (distanceSquared > 1) continue;
+
+        // The exact middle is up to 7x more important than the edge of the ROI.
+        final closeness = 1 - distanceSquared;
+        final weight = 1 + 6 * closeness * closeness;
+        final bucket = centreBuckets.putIfAbsent(key, _WeightedColorBucket.new);
+        bucket.add(r, g, b, weight);
       }
     }
-    return best;
-  }
 
-  /// RGB (0..1) -> HSV. Returns (hue 0..360, saturation 0..1, value 0..1).
-  (double, double, double) _toHsv(double r, double g, double b) {
-    final max = [r, g, b].reduce((a, b) => a > b ? a : b);
-    final min = [r, g, b].reduce((a, b) => a < b ? a : b);
-    final delta = max - min;
+    if (centreBuckets.isEmpty) return null;
+    final strongestBorder = borderWeights.values.fold<double>(
+      0,
+      (best, value) => value > best ? value : best,
+    );
 
-    double h;
-    if (delta == 0) {
-      h = 0;
-    } else if (max == r) {
-      h = 60 * (((g - b) / delta) % 6);
-    } else if (max == g) {
-      h = 60 * (((b - r) / delta) + 2);
-    } else {
-      h = 60 * (((r - g) / delta) + 4);
+    _WeightedColorBucket? best;
+    var bestScore = -1.0;
+    for (final entry in centreBuckets.entries) {
+      final backgroundShare = strongestBorder == 0
+          ? 0.0
+          : (borderWeights[entry.key] ?? 0) / strongestBorder;
+      final score = entry.value.weight * (1 - 0.80 * backgroundShare);
+      if (score > bestScore) {
+        bestScore = score;
+        best = entry.value;
+      }
     }
-    if (h < 0) h += 360;
 
-    final s = max == 0 ? 0.0 : delta / max;
-    return (h, s, max);
+    if (best == null || best.weight == 0) return null;
+    return ui.Color.fromARGB(
+      255,
+      (best.red / best.weight).round().clamp(0, 255),
+      (best.green / best.weight).round().clamp(0, 255),
+      (best.blue / best.weight).round().clamp(0, 255),
+    );
   }
 
   /// Names a colour by finding the nearest entry in a broad colour vocabulary
@@ -648,5 +685,19 @@ class ClassificationService {
 
   Future<void> dispose() async {
     await _labeler.close();
+  }
+}
+
+class _WeightedColorBucket {
+  double weight = 0;
+  double red = 0;
+  double green = 0;
+  double blue = 0;
+
+  void add(int r, int g, int b, double pixelWeight) {
+    weight += pixelWeight;
+    red += r * pixelWeight;
+    green += g * pixelWeight;
+    blue += b * pixelWeight;
   }
 }
