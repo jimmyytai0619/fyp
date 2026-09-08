@@ -50,7 +50,12 @@ class ApiService {
       'tags': tags,
       'image_url': imageUrl,
       'security_question': securityQuestion,
-      'created_at': DateTime.now().toIso8601String(),
+      // created_at is left to the database's DEFAULT NOW(). Sending
+      // DateTime.now().toIso8601String() wrote the device's LOCAL time with no
+      // timezone marker, which Postgres reads as UTC — so a UTC+8 phone filed
+      // items eight hours in the future, and an emulator (which runs on UTC)
+      // filed them at yet another offset. Server time keeps every row on one
+      // clock regardless of what the device believes.
     }).select('id').single();
 
     final id = inserted['id'] as String;
@@ -202,12 +207,16 @@ class ApiService {
     return res as String;
   }
 
-  /// FR 5.6 — Finder generates the one-time handover code for a verified claim.
+  /// FR 5.6 — The finder's handover code for a verified claim.
   /// Returns the 6-digit code, or a status (NOT_FINDER, NOT_VERIFIED, NOT_FOUND).
-  Future<String> startHandover(String claimId) async {
+  ///
+  /// The code is created once per claim and stays the same on later calls, so
+  /// reopening this screen can't invalidate the code the claimant is currently
+  /// typing. Pass [regenerate] to deliberately replace it.
+  Future<String> startHandover(String claimId, {bool regenerate = false}) async {
     final res = await _client.rpc(
       'start_handover',
-      params: {'p_claim_id': claimId},
+      params: {'p_claim_id': claimId, 'p_regenerate': regenerate},
     );
     return res as String;
   }
@@ -306,7 +315,8 @@ class ApiService {
           'description': description,
           'tags': tags,
           'image_url': imageUrl,
-          'created_at': DateTime.now().toIso8601String(),
+          // Left to the database's DEFAULT NOW() — see reportFoundItem for why
+          // a device-supplied timestamp skewed rows by the device's UTC offset.
         })
         .select('id')
         .single();

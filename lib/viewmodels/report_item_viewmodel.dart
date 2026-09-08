@@ -144,8 +144,12 @@ class ReportItemViewModel extends ChangeNotifier {
         if (_selectedImage != null) {
           try {
             await ApiService().ingestLostItem(newId);
-          } catch (_) {
-            /* ignore — reporting already succeeded */
+          } catch (e) {
+            // The report itself already saved, so this must not fail the flow
+            // — but staying silent hid a real problem: when the AI server is
+            // unreachable the owner simply never gets their match alert, with
+            // nothing anywhere to say why.
+            debugPrint('[report] lost-item matching did not run: $e');
           }
         }
       } else {
@@ -165,11 +169,13 @@ class ReportItemViewModel extends ChangeNotifier {
           securityQuestion: securityQuestion?.trim(),
           securityAnswer: securityAnswer?.trim(),
         );
-        // Fire the background matching agent (FR 4.3). Best-effort.
+        // Fire the background matching agent (FR 4.3). Best-effort, but not
+        // silent: if this can't reach the AI server nobody is alerted about
+        // the find, and without a line here there's nothing to explain it.
         try {
           await ApiService().ingestFoundItem(newId);
-        } catch (_) {
-          /* ignore — reporting already succeeded */
+        } catch (e) {
+          debugPrint('[report] found-item matching did not run: $e');
         }
       }
     } finally {

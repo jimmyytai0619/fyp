@@ -39,13 +39,17 @@ class _HandoverCodeViewState extends State<HandoverCodeView> {
     _generate();
   }
 
-  Future<void> _generate() async {
+  /// Loads the claim's handover code. It's the same code every time unless
+  /// [regenerate] is set, so simply revisiting this screen can't invalidate a
+  /// code the claimant is already entering.
+  Future<void> _generate({bool regenerate = false}) async {
     setState(() {
       _loading = true;
       _error = null;
     });
     try {
-      final result = await ApiService().startHandover(widget.claim.id);
+      final result = await ApiService()
+          .startHandover(widget.claim.id, regenerate: regenerate);
       if (!mounted) return;
       if (RegExp(r'^\d{6}$').hasMatch(result)) {
         setState(() => _code = result);
@@ -64,6 +68,32 @@ class _HandoverCodeViewState extends State<HandoverCodeView> {
         'NOT_FINDER' => 'Only the finder can show the handover code.',
         _ => 'Could not create the code. Please try again.',
       };
+
+  /// Replacing the code stops the old QR working, so make that explicit —
+  /// the claimant may be looking at it right now.
+  Future<void> _confirmRegenerate() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Generate a new code?'),
+        content: const Text(
+          'The current code and QR will stop working. Only do this if the '
+          'code may have been seen by someone else.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Replace it'),
+          ),
+        ],
+      ),
+    );
+    if (ok == true) await _generate(regenerate: true);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -147,7 +177,7 @@ class _HandoverCodeViewState extends State<HandoverCodeView> {
         ),
         const SizedBox(height: 8),
         TextButton.icon(
-          onPressed: _generate,
+          onPressed: _confirmRegenerate,
           icon: const Icon(Icons.refresh_rounded, size: 18),
           label: const Text('Generate a new code'),
         ),

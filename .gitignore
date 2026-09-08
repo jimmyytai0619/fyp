@@ -48,3 +48,9 @@ app.*.map.json
 backend/__pycache__/
 backend/venv/
 backend/.env
+# Gradle output for the android module (the root /build/ rule above misses this one).
+/android/build/
+
+# Query images the backend writes on every AI match request (SAVE_QUERIES_DIR
+# in backend/main.py). Runtime debug output, not source.
+/backend/queries/

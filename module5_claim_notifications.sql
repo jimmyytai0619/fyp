@@ -362,7 +362,12 @@ create policy "handover_finder_read" on public.claim_handovers for select
 -- No direct writes from clients — only the security-definer RPCs below.
 
 -- Finder generates (or regenerates) the handover code for a verified claim.
-create or replace function public.start_handover(p_claim_id uuid)
+-- Stable per claim: created once and returned unchanged thereafter, so the QR
+-- the claimant is looking at stays valid. Only p_regenerate => true replaces it.
+create or replace function public.start_handover(
+  p_claim_id   uuid,
+  p_regenerate boolean default false
+)
 returns text
 language plpgsql
 security definer
@@ -380,6 +385,11 @@ begin
   if v_finder <> v_uid then return 'NOT_FINDER'; end if;
   if v_status <> 'Verified' then return 'NOT_VERIFIED'; end if;
 
+  if not p_regenerate then
+    select code into v_code from claim_handovers where claim_id = p_claim_id;
+    if v_code is not null then return v_code; end if;
+  end if;
+
   v_code := lpad((floor(random() * 1000000))::int::text, 6, '0');
   insert into claim_handovers(claim_id, code)
     values (p_claim_id, v_code)
@@ -387,7 +397,7 @@ begin
   return v_code;
 end;
 $$;
-grant execute on function public.start_handover(uuid) to authenticated;
+grant execute on function public.start_handover(uuid, boolean) to authenticated;
 
 -- Claimant presents the code (scanned or typed). Marks the handover verified
 -- and notifies the finder. Returns OK / BAD_CODE / NO_CODE / NOT_CLAIMANT / ...

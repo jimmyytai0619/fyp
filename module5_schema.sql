@@ -303,10 +303,11 @@ declare
   v_claimant uuid;
   v_item     uuid;
   v_category text;
+  v_claim_at timestamptz;
 begin
   if v_uid is null then return 'NOT_AUTHENTICATED'; end if;
-  select c.finder_id, c.claimant_id, c.found_item_id, fi.category
-    into v_finder, v_claimant, v_item, v_category
+  select c.finder_id, c.claimant_id, c.found_item_id, fi.category, c.created_at
+    into v_finder, v_claimant, v_item, v_category, v_claim_at
     from claims c join found_items fi on fi.id = c.found_item_id
     where c.id = p_claim_id;
   if not found then return 'NOT_FOUND'; end if;
@@ -320,10 +321,22 @@ begin
     exception when others then null;
     end;
 
+    -- Close only the one report this return most plausibly answers, and never
+    -- a report filed after the claim began. Closing every report the claimant
+    -- has in this category silently stopped them all from producing match
+    -- alerts, since /ingest-found skips resolved reports — and "Other" is a
+    -- catch-all, so one return could close a brand-new, unrelated report.
     begin
       update lost_items set is_resolved = true
-        where user_id = v_claimant and category = v_category
-          and coalesce(is_resolved, false) = false;
+        where id = (
+          select id from lost_items
+           where user_id = v_claimant
+             and category = v_category
+             and coalesce(is_resolved, false) = false
+             and created_at <= coalesce(v_claim_at, now())
+           order by created_at desc
+           limit 1
+        );
     exception when others then null;
     end;
 
@@ -417,7 +430,17 @@ drop policy if exists "handover_finder_read" on public.claim_handovers;
 create policy "handover_finder_read" on public.claim_handovers for select
   using (auth.uid() = (select finder_id from public.claims where id = claim_id));
 
-create or replace function public.start_handover(p_claim_id uuid)
+-- The code is created once per claim and returned unchanged thereafter, so the
+-- QR the claimant is looking at stays valid. Minting a fresh code on every call
+-- meant reopening this screen mid-handover invalidated the code the claimant
+-- was already typing. Only p_regenerate => true replaces it.
+--
+-- Stable per CLAIM, not per ITEM: a claim is one item plus one specific
+-- claimant, so two people claiming the same item get different codes.
+create or replace function public.start_handover(
+  p_claim_id   uuid,
+  p_regenerate boolean default false
+)
 returns text
 language plpgsql
 security definer
@@ -435,6 +458,11 @@ begin
   if v_finder <> v_uid then return 'NOT_FINDER'; end if;
   if v_status <> 'Verified' then return 'NOT_VERIFIED'; end if;
 
+  if not p_regenerate then
+    select code into v_code from claim_handovers where claim_id = p_claim_id;
+    if v_code is not null then return v_code; end if;
+  end if;
+
   v_code := lpad((floor(random() * 1000000))::int::text, 6, '0');
   insert into claim_handovers(claim_id, code)
     values (p_claim_id, v_code)
@@ -442,7 +470,7 @@ begin
   return v_code;
 end;
 $$;
-grant execute on function public.start_handover(uuid) to authenticated;
+grant execute on function public.start_handover(uuid, boolean) to authenticated;
 
 create or replace function public.verify_handover(p_claim_id uuid, p_code text)
 returns text
